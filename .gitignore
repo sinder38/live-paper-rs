@@ -1,0 +1,8 @@
+# Wild ignore
+*.
+!.gitignore
+
+
+# Rust
+
+/target
