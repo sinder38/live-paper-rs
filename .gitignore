@@ -6,3 +6,6 @@
 # Rust
 
 /target
+
+# Local test wallpapers
+/wallpapers/

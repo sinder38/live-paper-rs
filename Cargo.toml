@@ -2,6 +2,7 @@
 name = "live-paper"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 glow = "0.18.0"
