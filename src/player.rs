@@ -68,7 +68,8 @@ impl Player {
     /// Draw the current video frame
     pub fn render(&self, width: i32, height: i32) {
         if let Some(render) = &self.render {
-            let flip = false;
+            // Reversed: flip for normal, no flip for flipped
+            let flip = true;
             let _ = render.render::<()>(0, width, height, flip);
         }
     }

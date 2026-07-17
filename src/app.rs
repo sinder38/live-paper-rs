@@ -43,7 +43,7 @@ pub struct App {
     width: u32,
     height: u32,
     // Physical
-    phys_w: u32,
+    phys_w: u32, //maybe i32
     phys_h: u32,
     first_configure: bool,
     exit: bool,
@@ -139,9 +139,9 @@ impl App {
             self.width, self.height, self.phys_w, self.phys_h
         );
 
-        // Not sure if this is needed
-        // self.viewport
-        //     .set_destination(self.width as i32, self.height as i32);
+        // Set logical size
+        self.viewport
+            .set_destination(self.width as i32, self.height as i32);
 
         let (pw, ph) = (self.phys_w as i32, self.phys_h as i32);
 
