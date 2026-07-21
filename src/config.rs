@@ -5,10 +5,10 @@ use std::path::PathBuf;
 /// Config is loaded from `$XDG_CONFIG_HOME/live-paper/config.toml`
 ///
 /// Every field has a default, so an absent or partial file is fine.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
-    /// Video path, overridable by the CLI arg (CLI wins).
+    /// Video path, overridable by the CLI arg (CLI wins)
     pub path: Option<String>,
     /// Mpv player confiruration
     pub player: PlayerConfig,
@@ -16,17 +16,6 @@ pub struct Config {
     pub layer: LayerConfig,
     /// Enable debug logging
     pub debug: DebugConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            path: None,
-            player: PlayerConfig::default(),
-            layer: LayerConfig::default(),
-            debug: DebugConfig::default(),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]

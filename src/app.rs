@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use smithay_client_toolkit::reexports::client::{
-    Connection, Dispatch, Proxy, QueueHandle, delegate_dispatch,
+    Connection, Dispatch, Proxy, QueueHandle,
     globals::GlobalList,
     protocol::{wl_output, wl_surface},
 };
@@ -129,12 +129,11 @@ impl App {
 
     /// Get output's hardware resolution
     fn get_physical_size(&self) -> (u32, u32) {
-        if let Some(output) = &self.output {
-            if let Some(info) = self.output_state.info(output) {
-                if let Some(mode) = info.modes.iter().find(|m| m.current) {
-                    return (mode.dimensions.0 as u32, mode.dimensions.1 as u32);
-                }
-            }
+        if let Some(output) = &self.output
+            && let Some(info) = self.output_state.info(output)
+            && let Some(mode) = info.modes.iter().find(|m| m.current)
+        {
+            return (mode.dimensions.0 as u32, mode.dimensions.1 as u32);
         }
 
         // Else just default
@@ -162,7 +161,9 @@ impl App {
 
         let (pw, ph) = (self.phys_w as i32, self.phys_h as i32);
 
-        if self.egl_window.is_none() {
+        if let Some(e) = self.egl_window.as_ref() {
+            e.resize(pw, ph);
+        } else {
             // There is no separation between render and mpv for now
             let window = self
                 .egl
@@ -174,8 +175,6 @@ impl App {
 
             let display_ptr = self.conn.backend().display_ptr() as *mut c_void;
             self.player.start(display_ptr).expect("start mpv render");
-        } else {
-            self.egl_window.as_ref().unwrap().resize(pw, ph);
         }
     }
 
@@ -187,6 +186,7 @@ impl App {
                 #[cfg(debug_assertions)]
                 panic!("DEBUG ONLY PANIC! Trust broken");
             }
+            #[cfg(not(debug_assertions))]
             return;
         };
 
@@ -298,9 +298,10 @@ impl OutputHandler for App {
         &mut self.output_state
     }
     fn new_output(&mut self, _c: &Connection, _q: &QueueHandle<Self>, _o: wl_output::WlOutput) {}
-    fn update_output(&mut self, _c: &Connection, _q: &QueueHandle<Self>, o: wl_output::WlOutput) {
+    fn update_output(&mut self, _c: &Connection, _q: &QueueHandle<Self>, _o: wl_output::WlOutput) {
         // Mode/resolution may have just become known or changed
 
+        //TODO: later re-check output handling
         if self.output.is_some() {
             self.apply_size();
         }

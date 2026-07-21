@@ -1,6 +1,7 @@
 use glow::HasContext;
 
 /// Test pattern to draw
+#[allow(dead_code)] // This whole section is just for testing purposes
 #[derive(Clone, Copy)]
 pub enum Pattern {
     Rainbow,

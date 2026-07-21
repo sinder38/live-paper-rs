@@ -4,6 +4,10 @@
     "label": "Run prod",
     "command": "cargo run --release -- ./wallpapers/bg.mp4"
   },
-  {}
+  {
+   "label": "Quick CI",
+   "command": "cargo clippy; cargo fmt; cargo test"
+
+  }
 
 ]
