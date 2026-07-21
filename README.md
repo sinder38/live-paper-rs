@@ -14,9 +14,6 @@
     <h3>Play videous as your background</h3>
 
 [![Rust](https://github.com/sinder38/live-paper-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/sinder38/live-paper-rs/actions/workflows/ci.yml)
-[![Latest Version](https://img.shields.io/crates/v/live-paper-rs.svg)](https://crates.io/crates/live-paper-rs)
-[![Rust Documentation](https://docs.rs/live-paper-rs/badge.svg)](https://docs.rs/live-paper-rs)
-![Crates.io](https://img.shields.io/crates/d/live-paper-rs)
   <br>Support by giving your ⭐!
 
 </div>
