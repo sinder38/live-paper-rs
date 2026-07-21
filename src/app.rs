@@ -22,9 +22,25 @@ use wayland_protocols::wp::viewporter::client::{
     wp_viewport::WpViewport, wp_viewporter::WpViewporter,
 };
 
+use crate::config::Config;
 use crate::egl::{Egl, EglWindow};
 use crate::player::Player;
 use crate::render::{Pattern, Renderer};
+
+/// Map the `layer.layer` config string onto smithay's `Layer` enum.
+/// Falls back to `Background` (with a warning) for anything unrecognized.
+fn parse_layer(name: &str) -> Layer {
+    match name {
+        "background" => Layer::Background,
+        "bottom" => Layer::Bottom,
+        "top" => Layer::Top,
+        "overlay" => Layer::Overlay,
+        other => {
+            eprintln!("Unknown layer \"{other}\", falling back to \"background\"");
+            Layer::Background
+        }
+    }
+}
 
 pub struct App {
     conn: Connection,
@@ -55,8 +71,9 @@ impl App {
         qh: &QueueHandle<Self>,
         conn: &Connection,
         video_path: &str,
+        config: &Config,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let player = Player::new(video_path)?;
+        let player = Player::new(video_path, &config.player, config.debug.enabled)?;
         let compositor = CompositorState::bind(globals, qh)?;
         let layer_shell = LayerShell::bind(globals, qh)?;
 
@@ -64,7 +81,7 @@ impl App {
         let layer = layer_shell.create_layer_surface(
             qh,
             surface,
-            Layer::Background,
+            parse_layer(&config.layer.layer),
             Some("live-paper-rs"),
             None,
         );
@@ -72,8 +89,8 @@ impl App {
         // Full screen
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
         layer.set_size(0, 0);
-        // Under other panels
-        layer.set_exclusive_zone(-1);
+        // Under other panels by default; configurable via layer.exclusive_zone
+        layer.set_exclusive_zone(config.layer.exclusive_zone);
 
         // A viewport for physical-resolution
         let viewporter: WpViewporter = globals.bind(qh, 1..=1, ())?;

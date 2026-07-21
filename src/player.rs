@@ -5,6 +5,8 @@ use libmpv2::render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamA
 
 use khronos_egl as egl;
 
+use crate::config::PlayerConfig;
+
 /// Wraps an mpv instance and its OpenGL render context
 /// The `Mpv` is intentionally leaked to obtain a static ref
 pub struct Player {
@@ -21,7 +23,11 @@ fn get_proc_address(egl_instance: &egl::Instance<egl::Static>, name: &str) -> *m
 }
 
 impl Player {
-    pub fn new(path: impl ToString) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        path: impl ToString,
+        config: &PlayerConfig,
+        debug: bool,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         // `vo=libmpv` MUST be set before mpv initializes, or mpv opens
         // its own window (a normal `class=mpv` toplevel) and ignores my render context
         let mpv = Box::leak(Box::new(Mpv::with_initializer(|init| {
@@ -30,12 +36,22 @@ impl Player {
 
         // Ref: https://mpv.io/manual/master/#options
         // TODO: test variant with initializer
-        if std::env::var("LP_DEBUG").is_ok() {
+        if debug || std::env::var("LP_DEBUG").is_ok() {
             mpv.set_property("terminal", "yes")?; // keep io
             mpv.set_property("msg-level", "all=status")?; // status msgs
         }
-        mpv.set_property("loop-file", "inf")?; // never stop
-        mpv.set_property("hwdec", "auto")?; // GPU decode when possible
+        mpv.set_property("loop-file", "inf")?; // a wallpaper never stops
+        mpv.set_property("hwdec", config.hwdec.as_str())?; // GPU decode when possible
+        mpv.set_property("mute", config.mute)?;
+        mpv.set_property("speed", config.speed)?;
+
+        // Free-form passthrough for anything not modeled above
+        for (name, value) in &config.mpv_options {
+            if let Err(e) = mpv.set_property(name.as_str(), value.as_str()) {
+                eprintln!("Failed to set mpv option {name}={value}: {e}");
+            }
+        }
+
         Ok(Self {
             mpv,
             render: None,

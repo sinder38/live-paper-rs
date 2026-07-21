@@ -1,0 +1,37 @@
+# Example live-paper config:
+
+# Path to the video file, can be overwritten using CLI args
+path = "/path/to/video.mp4"
+
+[player]
+speed = 1.0       # mpv `speed` property, e.g. 1.5 = 50% faster
+mute = true       # wallpapers are usually silent
+hwdec = "auto"    # "auto" | "no" | specific mpv hwdec name
+
+# Playback always loops (loop-file=inf)
+[player.mpv_options]
+# For the full please refer to: https://mpv.io/manual/master/#options
+# Free-form passthrough to mpv.set_property. Anything not modeled by the
+# typed fields above can go here.
+
+# A few options worth knowing about:
+
+# "panscan" = "1.0"          # crop-to-fill instead of letterboxing on mismatched aspect ratios
+# "video-rotate" = "0"       # rotate output in 90deg steps
+# "deinterlace" = "no"       # turn on if the source is interlaced
+# "saturation" = "0"         # -100..100, video-eq color adjustments
+# "contrast" = "0"
+# "brightness" = "0"
+# "gamma" = "0"
+# "interpolation" = "no"     # yes + tscale=oversample smooths motion, costs GPU
+# "tscale" = "oversample"
+# "video-sync" = "audio"     # frame timing/drop behavior, matters more once speed != 1.0
+# "start" = "0"              # seek offset before playback begins, e.g. "30" or "00:00:30"
+# "ao" = "null"              # hard-disable audio output entirely (alternative to mute)
+
+[layer]
+layer = "background"  # "background" | "bottom" | "top" | "overlay"
+exclusive_zone = -1
+
+[debug]
+enabled = false
