@@ -56,7 +56,8 @@ jobs:
           sudo apt-get install -y \
             libwayland-dev \
             libxkbcommon-dev \
-            pkg-config
+            libegl1-mesa-dev \
+            libgl1-mesa-dev \
       - name: Build workspace
         run: cargo build --verbose
       - name: Run tests
