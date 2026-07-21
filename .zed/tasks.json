@@ -1,0 +1,9 @@
+// Project tasks configuration. See https://zed.dev/docs/tasks for documentation.
+[
+  {
+    "label": "Run prod",
+    "command": "cargo run --release -- ./wallpapers/bg.mp4"
+  },
+  {}
+
+]
