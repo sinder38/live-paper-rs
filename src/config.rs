@@ -13,12 +13,24 @@ use smithay_client_toolkit::shell::wlr_layer::Layer;
 pub struct Config {
     /// Video path, overridable by the CLI arg (CLI wins)
     pub path: Option<String>,
+    /// Which frame source to use
+    pub backend: BackendKind,
     /// Mpv player confiruration
     pub player: PlayerConfig,
     /// Wayland layer configuration
     pub layer: LayerConfig,
     /// Enable debug logging
     pub debug: DebugConfig,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum BackendKind {
+    /// Play a video file/stream
+    #[default]
+    Mpv,
+    /// Draw the built-in glow pattern
+    Pattern,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,5 +128,17 @@ mod tests {
         assert_eq!(cfg.path.as_deref(), Some("/x.mp4"));
         assert_eq!(cfg.player.speed, 2.0);
         assert!(cfg.player.mute); // untouched field keeps its default
+    }
+
+    #[test]
+    fn backend_defaults_to_mpv() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert_eq!(cfg.backend, BackendKind::Mpv);
+    }
+
+    #[test]
+    fn parses_backend_choice() {
+        let cfg: Config = toml::from_str("backend = \"pattern\"\n").unwrap();
+        assert_eq!(cfg.backend, BackendKind::Pattern);
     }
 }

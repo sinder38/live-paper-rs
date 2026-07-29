@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use log::{debug, info, warn};
+use log::{debug, info};
 use smithay_client_toolkit::reexports::client::{
     Connection, Dispatch, Proxy, QueueHandle,
     globals::GlobalList,
@@ -21,7 +21,8 @@ use wayland_protocols::wp::viewporter::client::{
     wp_viewport::WpViewport, wp_viewporter::WpViewporter,
 };
 
-use crate::config::{Config, parse_layer};
+use crate::backend::{Backend, BackendCtx};
+use crate::config::{BackendKind, Config, parse_layer};
 use crate::egl::{Egl, EglWindow};
 use crate::player::Player;
 use crate::render::{Pattern, Renderer};
@@ -36,14 +37,15 @@ pub struct App {
     output: Option<wl_output::WlOutput>,
     egl: Egl,
     egl_window: Option<EglWindow>,
-    renderer: Option<Renderer>,
-    player: Player,
-    pattern: Pattern,
-    // Logical
+    /// The active frame source, chosen from config
+    backend: Backend,
+    /// Logical width
     width: u32,
+    /// Logical height
     height: u32,
-    // Physical
+    /// Physical width
     phys_w: u32, //maybe i32
+    /// Physical height
     phys_h: u32,
     first_configure: bool,
     exit: bool,
@@ -57,7 +59,16 @@ impl App {
         video_path: &str,
         config: &Config,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let player = Player::new(video_path, &config.player, config.debug.enabled)?;
+        // Only the requested backend is constructed
+        let backend = match config.backend {
+            BackendKind::Mpv => Backend::Mpv(Player::new(
+                video_path,
+                &config.player,
+                config.debug.enabled,
+            )?),
+            BackendKind::Pattern => Backend::Glow(Renderer::new(Pattern::Checkerboard)),
+        };
+
         let compositor = CompositorState::bind(globals, qh)?;
         let layer_shell = LayerShell::bind(globals, qh)?;
 
@@ -94,9 +105,7 @@ impl App {
             output: None,
             egl,
             egl_window: None,
-            renderer: None,
-            player,
-            pattern: Pattern::Checkerboard,
+            backend,
             width: 0,
             height: 0,
             phys_w: 0,
@@ -148,47 +157,37 @@ impl App {
         if let Some(e) = self.egl_window.as_ref() {
             e.resize(pw, ph);
         } else {
-            // There is no separation between render and mpv for now
             let window = self
                 .egl
                 .create_window(self.layer.wl_surface(), pw, ph)
                 .expect("create egl window");
 
-            self.renderer = Some(Renderer::new(&window.gl));
-            self.egl_window = Some(window);
-
             let display_ptr = self.conn.backend().display_ptr() as *mut c_void;
-            self.player.start(display_ptr).expect("start mpv render");
+            self.backend
+                .init(BackendCtx {
+                    gl: &window.gl,
+                    display_ptr,
+                })
+                .expect("init backend");
+
+            self.egl_window = Some(window);
         }
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>, time: u32) {
-        let (Some(window), Some(renderer)) = (&self.egl_window, &self.renderer) else {
-            {
-                // TODO: remove this before first release
-                // It seems this is unreachable on Hyprland, but I am not sure about others
-                #[cfg(debug_assertions)]
-                panic!("DEBUG ONLY PANIC! Trust broken");
-            }
-            #[cfg(not(debug_assertions))]
+        debug_assert!(
+            self.egl_window.is_some(),
+            "If this panics on your setup, please create an issue listing your specs"
+        );
+        // The window may not exist, skip until it does
+        let Some(window) = &self.egl_window else {
             return;
         };
 
         self.egl.bind(window).expect("make current");
 
-        // TODO: temp switch between mpv and test renders
-        if self.player.is_started() {
-            self.player.render(self.phys_w as i32, self.phys_h as i32);
-        } else {
-            // Until mpv's render context exists, show the test pattern
-            renderer.draw(
-                &window.gl,
-                self.pattern,
-                self.phys_w as i32,
-                self.phys_h as i32,
-                time,
-            );
-        }
+        self.backend
+            .render(&window.gl, self.phys_w as i32, self.phys_h as i32, time);
 
         // Schedule the next frame
         let surface = self.layer.wl_surface();

@@ -1,4 +1,5 @@
 mod app;
+mod backend;
 mod config;
 mod egl;
 mod player;

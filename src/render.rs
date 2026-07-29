@@ -1,5 +1,7 @@
 use glow::HasContext;
 
+use crate::backend::BackendCtx;
+
 /// Test pattern to draw
 #[allow(dead_code)] // This whole section is just for testing purposes
 #[derive(Clone, Copy)]
@@ -29,30 +31,48 @@ void main() {
     color = vec4(vec3(v), 1.0);
 }";
 
-/// Holds the compiled GL programs
-pub struct Renderer {
+/// The compiled GL programs
+struct Programs {
     checker: glow::Program,
     vertex_arr: glow::VertexArray,
 }
 
+/// Draws a procedural pattern
+pub struct Renderer {
+    pattern: Pattern,
+    programs: Option<Programs>,
+}
+
 impl Renderer {
-    pub fn new(gl: &glow::Context) -> Self {
-        unsafe {
-            let vertex_arr = gl.create_vertex_array().expect("create vertex array");
-            let checker = compile(gl, VERT_SRC, CHECKER_SRC);
-            Self {
-                checker,
-                vertex_arr,
-            }
+    pub fn new(pattern: Pattern) -> Self {
+        Self {
+            pattern,
+            programs: None,
         }
     }
 
-    pub fn draw(&self, gl: &glow::Context, pattern: Pattern, width: i32, height: i32, time: u32) {
+    pub fn init(&mut self, ctx: BackendCtx) -> Result<(), Box<dyn std::error::Error>> {
+        let gl = ctx.gl;
+        unsafe {
+            let vertex_arr = gl.create_vertex_array().expect("create vertex array");
+            let checker = compile(gl, VERT_SRC, CHECKER_SRC);
+            self.programs = Some(Programs {
+                checker,
+                vertex_arr,
+            });
+        }
+        Ok(())
+    }
+
+    pub fn render(&mut self, gl: &glow::Context, width: i32, height: i32, time: u32) {
+        let Some(programs) = &self.programs else {
+            return;
+        };
         unsafe {
             gl.viewport(0, 0, width, height);
 
             // match is fine for a test
-            match pattern {
+            match self.pattern {
                 Pattern::Rainbow => {
                     let t = time as f32 * 0.001;
                     let wave = |phase: f32| 0.5 + 0.5 * (t + phase).sin();
@@ -60,10 +80,10 @@ impl Renderer {
                     gl.clear(glow::COLOR_BUFFER_BIT);
                 }
                 Pattern::Checkerboard => {
-                    gl.use_program(Some(self.checker));
-                    let loc = gl.get_uniform_location(self.checker, "square");
+                    gl.use_program(Some(programs.checker));
+                    let loc = gl.get_uniform_location(programs.checker, "square");
                     gl.uniform_1_f32(loc.as_ref(), SQUARE_PX);
-                    gl.bind_vertex_array(Some(self.vertex_arr));
+                    gl.bind_vertex_array(Some(programs.vertex_arr));
                     gl.draw_arrays(glow::TRIANGLES, 0, 3);
                 }
             }

@@ -5,6 +5,7 @@ use libmpv2::render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamA
 
 use khronos_egl as egl;
 
+use crate::backend::BackendCtx;
 use crate::config::PlayerConfig;
 
 /// Wraps an mpv instance and its OpenGL render context
@@ -58,9 +59,11 @@ impl Player {
             path: path.to_string(),
         })
     }
+}
 
-    /// Create the GL render context
-    pub fn start(&mut self, wl_display: *mut c_void) -> Result<(), Box<dyn std::error::Error>> {
+impl Player {
+    /// Create the GL render context and start playback
+    pub fn init(&mut self, ctx: BackendCtx) -> Result<(), Box<dyn std::error::Error>> {
         let render = self.mpv.create_render_context(vec![
             RenderParam::ApiType(RenderParamApiType::OpenGl),
             RenderParam::InitParams(OpenGLInitParams {
@@ -68,7 +71,7 @@ impl Player {
                 // Instance<Static> is ZST, so building a fresh owned one is free
                 ctx: egl::Instance::new(egl::Static),
             }),
-            RenderParam::WaylandDisplay(wl_display as *const c_void),
+            RenderParam::WaylandDisplay(ctx.display_ptr as *const c_void),
         ])?;
 
         self.render = Some(render);
@@ -77,12 +80,8 @@ impl Player {
         Ok(())
     }
 
-    pub fn is_started(&self) -> bool {
-        self.render.is_some()
-    }
-
-    /// Draw the current video frame
-    pub fn render(&self, width: i32, height: i32) {
+    /// Draw the current video frame. mpv drives its own GL, so gl,time are unused
+    pub fn render(&mut self, _gl: &glow::Context, width: i32, height: i32, _time: u32) {
         if let Some(render) = &self.render {
             // Reversed: flip for normal, no flip for flipped
             let flip = true;
