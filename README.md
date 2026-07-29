@@ -9,10 +9,13 @@
 
 ## Currently in development!
 
+TODO:
+1. Daemon persistance and dynamic wallpaper swap
+2. Halt when not on screen (maybe)
+3. Publish on at least some package managers
 
 ## Overview
 
-TODO
 
 ## Additional Acknolegments
 https://github.com/GhostNaN/mpvpaper - inspiration and original mpv paper project
