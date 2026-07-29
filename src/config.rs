@@ -2,6 +2,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use log::{error, warn};
+use smithay_client_toolkit::shell::wlr_layer::Layer;
+
 /// Config is loaded from `$XDG_CONFIG_HOME/live-paper/config.toml`
 ///
 /// Every field has a default, so an absent or partial file is fine.
@@ -64,15 +67,14 @@ pub struct DebugConfig {
 }
 
 impl Config {
-    /// Load from the standard config path, falling back to defaults if the
-    /// file is missing.
+    /// Load from the standard config path, falling back to defaults if the file is missing
     pub fn load() -> Self {
         let path = config_path();
         match std::fs::read_to_string(&path) {
             Ok(contents) => match toml::from_str(&contents) {
                 Ok(cfg) => cfg,
                 Err(e) => {
-                    eprintln!("Failed to parse config at {}: {}", path.display(), e);
+                    error!("Failed to parse config at {}: {}", path.display(), e);
                     Config::default()
                 }
             },
@@ -88,6 +90,20 @@ fn config_path() -> PathBuf {
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
     base.join("live-paper").join("config.toml")
+}
+
+/// Map the `layer.layer` config string onto smithay's `Layer` enum
+pub(crate) fn parse_layer(name: &str) -> Layer {
+    match name {
+        "background" => Layer::Background,
+        "bottom" => Layer::Bottom,
+        "top" => Layer::Top,
+        "overlay" => Layer::Overlay,
+        other => {
+            warn!("Unknown layer \"{other}\", falling back to \"background\"");
+            Layer::Background
+        }
+    }
 }
 
 #[cfg(test)]

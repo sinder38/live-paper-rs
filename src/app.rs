@@ -1,5 +1,6 @@
 use std::ffi::c_void;
 
+use log::{debug, info, warn};
 use smithay_client_toolkit::reexports::client::{
     Connection, Dispatch, Proxy, QueueHandle,
     globals::GlobalList,
@@ -13,34 +14,17 @@ use smithay_client_toolkit::{
     registry_handlers,
     shell::{
         WaylandSurface,
-        wlr_layer::{
-            Anchor, Layer, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure,
-        },
+        wlr_layer::{Anchor, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
     },
 };
 use wayland_protocols::wp::viewporter::client::{
     wp_viewport::WpViewport, wp_viewporter::WpViewporter,
 };
 
-use crate::config::Config;
+use crate::config::{Config, parse_layer};
 use crate::egl::{Egl, EglWindow};
 use crate::player::Player;
 use crate::render::{Pattern, Renderer};
-
-/// Map the `layer.layer` config string onto smithay's `Layer` enum.
-/// Falls back to `Background` (with a warning) for anything unrecognized.
-fn parse_layer(name: &str) -> Layer {
-    match name {
-        "background" => Layer::Background,
-        "bottom" => Layer::Bottom,
-        "top" => Layer::Top,
-        "overlay" => Layer::Overlay,
-        other => {
-            eprintln!("Unknown layer \"{other}\", falling back to \"background\"");
-            Layer::Background
-        }
-    }
-}
 
 pub struct App {
     conn: Connection,
@@ -137,7 +121,7 @@ impl App {
         }
 
         // Else just default
-        eprintln!("Using default width and height");
+        debug!("Using default width and height");
         (self.width, self.height)
     }
 
@@ -150,8 +134,8 @@ impl App {
         let (pw, ph) = self.get_physical_size();
         self.phys_w = pw;
         self.phys_h = ph;
-        eprintln!(
-            "logical {}x{} → physical {}x{}",
+        info!(
+            "Transalating: logical {}x{} → physical {}x{}",
             self.width, self.height, self.phys_w, self.phys_h
         );
 
