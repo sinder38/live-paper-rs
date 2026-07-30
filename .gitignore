@@ -2,11 +2,13 @@
 .*
 !.gitignore
 
+# Github
+!.github
+
 # Zed
 !.zed
 
 # Rust
-
 /target
 
 # Local test wallpapers
