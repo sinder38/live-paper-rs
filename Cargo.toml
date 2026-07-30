@@ -2,7 +2,9 @@
 name = "live-paper"
 version = "0.1.0"
 edition = "2024"
-publish = false
+description = "A Wayland video wallpaper"
+repository = "https://github.com/sinder38/live-paper-rs"
+homepage = "https://github.com/sinder38/live-paper-rs"
 license = "MIT"
 
 [dependencies]

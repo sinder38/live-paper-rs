@@ -30,6 +30,7 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+      # may be a llitle execssive
       - name: Install system dependencies
         run: |
           sudo apt-get update
