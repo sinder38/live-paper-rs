@@ -29,6 +29,13 @@ impl Player {
         config: &PlayerConfig,
         debug: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let path = path.to_string();
+
+        // Without this check a missing file just plays as a black screen
+        if !path.contains("://") && !std::path::Path::new(&path).exists() {
+            return Err(format!("video file not found: {path}").into());
+        }
+
         // `vo=libmpv` MUST be set before mpv initializes, or mpv opens
         // its own window (a normal `class=mpv` toplevel) and ignores my render context
         let mpv = Box::leak(Box::new(Mpv::with_initializer(|init| {
@@ -58,7 +65,7 @@ impl Player {
         Ok(Self {
             mpv,
             render: None,
-            path: path.to_string(),
+            path,
         })
     }
 }
