@@ -1,7 +1,9 @@
 # Wild ignore
-*.
+.*
 !.gitignore
 
+# Zed
+!.zed
 
 # Rust
 
