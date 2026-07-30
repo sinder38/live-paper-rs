@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use log::{error, warn};
+use log::{error, info, warn};
 use smithay_client_toolkit::shell::wlr_layer::Layer;
 
 use crate::APP_NAME;
@@ -86,13 +86,17 @@ impl Config {
     pub fn load(path: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
         match path {
             Some(path) => {
+                info!("Using config at: {}", path.display());
                 let contents = std::fs::read_to_string(&path)
                     .map_err(|e| format!("reading config {}: {e}", path.display()))?;
                 let cfg = toml::from_str(&contents)
                     .map_err(|e| format!("parsing config {}: {e}", path.display()))?;
                 Ok(cfg)
             }
-            None => Ok(Self::load_default()),
+            None => {
+                warn!("No config provided! Using config defaults");
+                Ok(Self::load_default())
+            }
         }
     }
 

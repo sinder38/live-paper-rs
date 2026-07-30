@@ -2,7 +2,7 @@
 [
   {
     "label": "Run mpv prod",
-    "command": "cargo run --release -- ./wallpapers/bg.mp4"
+    "command": "cargo run --release -- -c ./.mpv_config.toml"
   },
   {
     "label": "Run pattern prod",
