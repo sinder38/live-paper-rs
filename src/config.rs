@@ -79,8 +79,22 @@ pub struct DebugConfig {
 }
 
 impl Config {
-    /// Load from the standard config path, falling back to defaults if the file is missing
-    pub fn load() -> Self {
+    /// Load configuration.
+    pub fn load(path: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
+        match path {
+            Some(path) => {
+                let contents = std::fs::read_to_string(&path)
+                    .map_err(|e| format!("reading config {}: {e}", path.display()))?;
+                let cfg = toml::from_str(&contents)
+                    .map_err(|e| format!("parsing config {}: {e}", path.display()))?;
+                Ok(cfg)
+            }
+            None => Ok(Self::load_default()),
+        }
+    }
+
+    /// Lenient load from the standard XDG path, falling back to defaults
+    fn load_default() -> Self {
         let path = config_path();
         match std::fs::read_to_string(&path) {
             Ok(contents) => match toml::from_str(&contents) {

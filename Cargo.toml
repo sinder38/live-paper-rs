@@ -6,6 +6,7 @@ publish = false
 license = "MIT"
 
 [dependencies]
+clap = { version = "4.6.4", features = ["derive"] }
 log = {version = "0.4"}
 env_logger = {version = "0.11.11"}
 glow = "0.18.0"
