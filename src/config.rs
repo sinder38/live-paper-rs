@@ -41,6 +41,9 @@ pub struct PlayerConfig {
     pub speed: f64,
     pub mute: bool,
     pub hwdec: String,
+    /// `true` crops the video to fill the screen
+    /// `false` shows the whole video and letterboxes it
+    pub fill: bool,
     /// Raw passthrough to `mpv.set_property`, applied after the typed fields!
     /// Full option list: https://mpv.io/manual/master/#options
     pub mpv_options: HashMap<String, String>,
@@ -52,6 +55,7 @@ impl Default for PlayerConfig {
             speed: 1.0,
             mute: true,
             hwdec: "auto".to_string(),
+            fill: true,
             mpv_options: HashMap::new(),
         }
     }

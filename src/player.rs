@@ -45,6 +45,8 @@ impl Player {
         mpv.set_property("hwdec", config.hwdec.as_str())?; // GPU decode when possible
         mpv.set_property("mute", config.mute)?;
         mpv.set_property("speed", config.speed)?;
+        // 1.0 zooms and crops the overflow; `0.0` letterboxes it instead
+        mpv.set_property("panscan", if config.fill { 1.0 } else { 0.0 })?;
 
         // Free-form passthrough for anything not modeled above
         for (name, value) in &config.mpv_options {

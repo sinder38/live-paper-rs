@@ -9,6 +9,7 @@ path = "/path/to/video.mp4"
 speed = 1.0       # mpv `speed` property, e.g. 1.5 = 50% faster
 mute = true       # wallpapers are usually silent
 hwdec = "auto"    # "auto" | "no" | specific mpv hwdec name
+fill = true       # crops the video to fill the screen (no black bars)
 
 # Playback always loops (loop-file=inf)
 [player.mpv_options]
@@ -18,7 +19,6 @@ hwdec = "auto"    # "auto" | "no" | specific mpv hwdec name
 
 # A few options worth knowing about:
 
-# "panscan" = "1.0"          # crop-to-fill instead of letterboxing on mismatched aspect ratios
 # "video-rotate" = "0"       # rotate output in 90deg steps
 # "deinterlace" = "no"       # turn on if the source is interlaced
 # "saturation" = "0"         # -100..100, video-eq color adjustments
