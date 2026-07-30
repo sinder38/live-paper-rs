@@ -1,5 +1,7 @@
 # Example live-paper config:
 
+# Choice of redering backend
+backend = "mpv"
 # Path to the video file, can be overwritten using CLI args
 path = "/path/to/video.mp4"
 

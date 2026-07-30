@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use log::{error, warn};
 use smithay_client_toolkit::shell::wlr_layer::Layer;
 
+use crate::APP_NAME;
+
 /// Config is loaded from `$XDG_CONFIG_HOME/live-paper/config.toml`
 ///
 /// Every field has a default, so an absent or partial file is fine.
@@ -72,6 +74,7 @@ impl Default for LayerConfig {
     }
 }
 
+// TODO: this doesn't work for the whole application as log init doesn't take it right now
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct DebugConfig {
@@ -115,7 +118,7 @@ fn config_path() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("live-paper").join("config.toml")
+    base.join(APP_NAME).join("config.toml")
 }
 
 /// Map the `layer.layer` config string onto smithay's `Layer` enum

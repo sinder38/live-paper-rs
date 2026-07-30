@@ -21,11 +21,14 @@ use wayland_protocols::wp::viewporter::client::{
     wp_viewport::WpViewport, wp_viewporter::WpViewporter,
 };
 
-use crate::backend::{Backend, BackendCtx};
 use crate::config::{BackendKind, Config, parse_layer};
 use crate::egl::{Egl, EglWindow};
 use crate::player::Player;
 use crate::render::{Pattern, Renderer};
+use crate::{
+    APP_NAME,
+    backend::{Backend, BackendCtx},
+};
 
 pub struct App {
     conn: Connection,
@@ -77,7 +80,7 @@ impl App {
             qh,
             surface,
             parse_layer(&config.layer.layer),
-            Some("live-paper-rs"),
+            Some(APP_NAME),
             None,
         );
 

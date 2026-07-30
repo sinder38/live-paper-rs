@@ -16,6 +16,8 @@ use smithay_client_toolkit::reexports::client::{Connection, globals::registry_qu
 // A generated ffmpeg test pattern, so it runs without video file
 const DEFAULT_SOURCE: &str = "av://lavfi:testsrc2=size=1280x720:rate=30";
 
+const APP_NAME: &str = "live-paper";
+
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
