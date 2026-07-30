@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::load(cli.config_path)?;
 
     // CLI arg over config file, otherwise run built-in default
-    let video_path = match cli.video.or_else(|| config.path.clone()) {
+    let video_path = match cli.video.or_else(|| config.player.path.clone()) {
         Some(a) => a,
         None => {
             warn!("Arugment and config path unavailible - using default");

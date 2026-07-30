@@ -1,17 +1,22 @@
-# Example live-paper config:
+# Example live-paper config
 
 # Choice of redering backend
+# mpv/player - render video (yes, you want this)
+# pattern - render one of the test patterns
 backend = "mpv"
-# Path to the video file, can be overwritten using CLI args
-path = "/path/to/video.mp4"
 
 [player]
-speed = 1.0       # mpv `speed` property, e.g. 1.5 = 50% faster
-mute = true       # wallpapers are usually silent
-hwdec = "auto"    # "auto" | "no" | specific mpv hwdec name
-fill = true       # crops the video to fill the screen (no black bars)
+# Path to the video file, can be overwritten using CLI args
+path = "/path/to/video.mp4"
+# mpv `speed` property, e.g. 1.5 = 50% faster
+speed = 1.0
+# wallpapers are usually silent
+mute = true
+# "auto" | "no" | specific mpv hwdec name
+hwdec = "auto"
+# crops the video to fill the screen (no black bars)
+fill = true
 
-# Playback always loops (loop-file=inf)
 [player.mpv_options]
 # For the full please refer to: https://mpv.io/manual/master/#options
 # Free-form passthrough to mpv.set_property. Anything not modeled by the
@@ -32,7 +37,8 @@ fill = true       # crops the video to fill the screen (no black bars)
 # "ao" = "null"              # hard-disable audio output entirely (alternative to mute)
 
 [layer]
-layer = "background"  # "background" | "bottom" | "top" | "overlay"
+# "background" | "bottom" | "top" | "overlay"
+layer = "background"
 exclusive_zone = -1
 
 [debug]

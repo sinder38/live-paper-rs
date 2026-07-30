@@ -13,8 +13,6 @@ use crate::APP_NAME;
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
-    /// Video path, overridable by the CLI arg (CLI wins)
-    pub path: Option<String>,
     /// Which frame source to use
     pub backend: BackendKind,
     /// Mpv player confiruration
@@ -30,14 +28,18 @@ pub struct Config {
 pub enum BackendKind {
     /// Play a video file/stream
     #[default]
+    #[serde(alias = "player")]
     Mpv,
     /// Draw the built-in glow pattern
+    #[serde(alias = "glow")]
     Pattern,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct PlayerConfig {
+    /// Video path, overridable by the CLI arg
+    pub path: Option<String>,
     pub speed: f64,
     pub mute: bool,
     pub hwdec: String,
@@ -52,6 +54,7 @@ pub struct PlayerConfig {
 impl Default for PlayerConfig {
     fn default() -> Self {
         Self {
+            path: None,
             speed: 1.0,
             mute: true,
             hwdec: "auto".to_string(),
@@ -149,8 +152,8 @@ mod tests {
 
     #[test]
     fn parses_partial_toml() {
-        let cfg: Config = toml::from_str("path = \"/x.mp4\"\n[player]\nspeed = 2.0\n").unwrap();
-        assert_eq!(cfg.path.as_deref(), Some("/x.mp4"));
+        let cfg: Config = toml::from_str("[player]\npath = \"/x.mp4\"\nspeed = 2.0\n").unwrap();
+        assert_eq!(cfg.player.path.as_deref(), Some("/x.mp4"));
         assert_eq!(cfg.player.speed, 2.0);
         assert!(cfg.player.mute); // untouched field keeps its default
     }
