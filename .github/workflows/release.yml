@@ -82,3 +82,49 @@ jobs:
         run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  aur-source:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp version into PKGBUILD
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i -E "s/^pkgver=.*/pkgver=$VERSION/" aur/live-paper/PKGBUILD
+          sed -i -E "s/^pkgrel=.*/pkgrel=1/" aur/live-paper/PKGBUILD
+
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        with:
+          pkgname: live-paper
+          pkgbuild: aur/live-paper/PKGBUILD
+          updpkgsums: true
+          commit_username: sinder
+          commit_email: smirnov.sinder@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ github.ref_name }}"
+
+  aur-bin:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp version into PKGBUILD
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i -E "s/^pkgver=.*/pkgver=$VERSION/" aur/live-paper-bin/PKGBUILD
+          sed -i -E "s/^pkgrel=.*/pkgrel=1/" aur/live-paper-bin/PKGBUILD
+
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        with:
+          pkgname: live-paper-bin
+          pkgbuild: aur/live-paper-bin/PKGBUILD
+          updpkgsums: true
+          commit_username: sinder
+          commit_email: smirnov.sinder@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ github.ref_name }}"
