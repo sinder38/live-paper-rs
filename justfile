@@ -29,3 +29,17 @@ retest-video resolution="1280x720":
 # Remove local build and test wallpaper artifacts
 clean:
     rm -rf wallpapers
+
+# Bump the crate version and create a matching git tag
+release version:
+    # basic
+    just check
+    cargo build --release
+    cargo test
+    # release
+    sed -i -E '0,/^version = ".*"/s//version = "{{version}}"/' Cargo.toml
+    cargo update -p live-paper
+    git add Cargo.toml Cargo.lock
+    git commit -m "Release v{{version}}"
+    git tag "v{{version}}"
+    @echo 'Tagged v{{version}}. Push with: git push origin HEAD --tags'
