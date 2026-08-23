@@ -1,8 +1,11 @@
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 
-use log::{debug, info};
+use log::{debug, info, warn};
 use smithay_client_toolkit::reexports::client::{
-    Connection, Dispatch, Proxy, QueueHandle,
+    Connection, Dispatch, Proxy, QueueHandle, WEnum,
+    backend::ObjectId,
+    event_created_child,
     globals::GlobalList,
     protocol::{wl_output, wl_surface},
 };
@@ -20,6 +23,16 @@ use smithay_client_toolkit::{
 use wayland_protocols::wp::viewporter::client::{
     wp_viewport::WpViewport, wp_viewporter::WpViewporter,
 };
+use wayland_protocols_wlr::foreign_toplevel::v1::client::{
+    zwlr_foreign_toplevel_handle_v1::{Event as ToplevelEvent, ZwlrForeignToplevelHandleV1},
+    zwlr_foreign_toplevel_manager_v1::{
+        EVT_TOPLEVEL_OPCODE, Event as ManagerEvent, ZwlrForeignToplevelManagerV1,
+    },
+};
+use wayland_protocols_wlr::output_power_management::v1::client::{
+    zwlr_output_power_manager_v1::ZwlrOutputPowerManagerV1,
+    zwlr_output_power_v1::{Event as PowerEvent, Mode as PowerMode, ZwlrOutputPowerV1},
+};
 
 use crate::config::{BackendKind, Config, parse_layer};
 use crate::egl::{Egl, EglWindow};
@@ -29,6 +42,24 @@ use crate::{
     APP_NAME,
     backend::{Backend, BackendCtx},
 };
+
+#[derive(Default)]
+struct ToplevelState {
+    fullscreen: bool,
+    maximized: bool,
+    activated: bool,
+    /// Every output this toplevel currently reports being visible on
+    outputs: HashSet<ObjectId>,
+}
+
+impl ToplevelState {
+    /// Is the wallpaper hidden?
+    fn to_hide(&self, our_output: Option<&ObjectId>) -> bool {
+        our_output.is_some_and(|o| self.outputs.contains(o))
+            && self.activated
+            && (self.fullscreen || self.maximized)
+    }
+}
 
 pub struct App {
     conn: Connection,
@@ -52,6 +83,20 @@ pub struct App {
     phys_h: u32,
     first_configure: bool,
     exit: bool,
+    /// True if some other window is covering the wallpaper (not fullproof)
+    hidden: bool,
+    /// Output switched off
+    screen_off: bool,
+    /// True while GameMode has at least one registered game
+    gamemode_active: bool,
+    /// Global for creating per-output power objects, if the compositor supports it
+    power_manager: Option<ZwlrOutputPowerManagerV1>,
+    /// DPMS power object for the current output
+    power: Option<ZwlrOutputPowerV1>,
+    /// Global for toplevel windows, if compositor has support
+    toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
+    /// State of every currently open toplevel panels
+    toplevels: HashMap<ObjectId, ToplevelState>,
 }
 
 impl App {
@@ -74,6 +119,8 @@ impl App {
 
         let compositor = CompositorState::bind(globals, qh)?;
         let layer_shell = LayerShell::bind(globals, qh)?;
+        // Enumerates existing windows for top, must be before toplevel_manager
+        let output_state = OutputState::new(globals, qh);
 
         let surface = compositor.create_surface(qh);
         let layer = layer_shell.create_layer_surface(
@@ -94,6 +141,19 @@ impl App {
         let viewporter: WpViewporter = globals.bind(qh, 1..=1, ())?;
         let viewport = viewporter.get_viewport(layer.wl_surface(), qh, ());
 
+        // Neither of these wlr-only protocols is guaranteed to exist
+        let power_manager: Option<ZwlrOutputPowerManagerV1> = globals.bind(qh, 1..=1, ()).ok();
+        if power_manager.is_none() {
+            warn!("Compositor lacks wlr-output-power-management-v1; DPMS-driven pausing disabled");
+        }
+        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> =
+            globals.bind(qh, 1..=3, ()).ok();
+        if toplevel_manager.is_none() {
+            warn!(
+                "Compositor lacks wlr-foreign-toplevel-management-v1; fullscreen/maximized-window pausing disabled"
+            );
+        }
+
         layer.commit();
 
         let display_ptr = conn.backend().display_ptr() as *mut c_void;
@@ -102,7 +162,7 @@ impl App {
         Ok(Self {
             conn: conn.clone(),
             registry_state: RegistryState::new(globals),
-            output_state: OutputState::new(globals, qh),
+            output_state,
             layer,
             viewport,
             output: None,
@@ -115,12 +175,79 @@ impl App {
             phys_h: 0,
             first_configure: true,
             exit: false,
+            hidden: false,
+            screen_off: false,
+            gamemode_active: false,
+            power_manager,
+            power: None,
+            toplevel_manager,
+            toplevels: HashMap::new(),
         })
     }
 
     pub fn exit(&self) -> bool {
         //
         self.exit
+    }
+
+    /// True if backend should be paused
+    fn should_pause(&self) -> bool {
+        self.hidden || self.screen_off || self.gamemode_active
+    }
+
+    /// Call when obscured or hidden (assumed)
+    fn set_hidden(&mut self, hidden: bool) {
+        // Skip if applied
+        if self.hidden == hidden {
+            return;
+        }
+        // Re-compute and re-apply
+        self.hidden = hidden;
+        self.apply_pause_edge();
+    }
+
+    /// Call when screen is off
+    fn set_screen_off(&mut self, screen_off: bool) {
+        // Skip if applied
+        if self.screen_off == screen_off {
+            return;
+        }
+        // Re-compute and re-apply
+        self.screen_off = screen_off;
+        self.apply_pause_edge();
+    }
+
+    /// Call when gamemode is on
+    pub fn set_gamemode(&mut self, active: bool) {
+        // Skip if applied
+        if self.gamemode_active == active {
+            return;
+        }
+        // Re-compute and re-apply
+        self.gamemode_active = active;
+        self.apply_pause_edge();
+    }
+
+    /// Call after mutating `occluded`/`screen_off`; only touches the backend
+    /// on the OR'd value's edge, to avoid redundant mpv calls
+
+    pub fn apply_pause_edge(&mut self) {
+        let now_paused = self.should_pause();
+        if now_paused {
+            self.backend.pause();
+        } else {
+            self.backend.resume();
+        }
+    }
+
+    /// Recompute `to_hide` from the current toplevel states
+    fn recompute_hidden(&mut self) {
+        let our_output = self.output.as_ref().map(Proxy::id);
+        let hidden = self
+            .toplevels
+            .values()
+            .any(|t| t.to_hide(our_output.as_ref()));
+        self.set_hidden(hidden);
     }
 
     /// Get output's hardware resolution
@@ -187,13 +314,22 @@ impl App {
             return;
         };
 
+        let surface = self.layer.wl_surface();
+
+        if self.should_pause() {
+            // Skip the actual render/present,
+            surface.frame(qh, surface.clone());
+            surface.commit();
+            self.conn.flush().ok();
+            return;
+        }
+
         self.egl.bind(window).expect("make current");
 
         self.backend
             .render(&window.gl, self.phys_w as i32, self.phys_h as i32, time);
 
         // Schedule the next frame
-        let surface = self.layer.wl_surface();
         surface.frame(qh, surface.clone());
 
         // Present new frame (like commit)
@@ -215,11 +351,18 @@ impl CompositorHandler for App {
     fn surface_enter(
         &mut self,
         _c: &Connection,
-        _q: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
         _s: &wl_surface::WlSurface,
         output: &wl_output::WlOutput,
     ) {
         self.output = Some(output.clone());
+        if self.power.is_none()
+            && let Some(manager) = &self.power_manager
+        {
+            self.power = Some(manager.get_output_power(output, qh, ()));
+        }
+        // Toplevels may have reported their outputs before ours was known
+        self.recompute_hidden();
         self.apply_size();
     }
 
@@ -327,6 +470,130 @@ impl Dispatch<WpViewport, ()> for App {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
+    }
+}
+
+impl Dispatch<ZwlrOutputPowerManagerV1, ()> for App {
+    fn event(
+        _: &mut Self,
+        _: &ZwlrOutputPowerManagerV1,
+        _: <ZwlrOutputPowerManagerV1 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwlrOutputPowerV1, ()> for App {
+    fn event(
+        app: &mut Self,
+        proxy: &ZwlrOutputPowerV1,
+        event: <ZwlrOutputPowerV1 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            PowerEvent::Mode {
+                mode: WEnum::Value(PowerMode::On),
+            } => app.set_screen_off(false),
+            PowerEvent::Mode {
+                mode: WEnum::Value(PowerMode::Off),
+            } => app.set_screen_off(true),
+            PowerEvent::Failed => {
+                warn!("zwlr_output_power_v1 failed; falling back to occlusion detection only");
+                proxy.destroy();
+                app.power = None;
+                // No more mode updates will come for this output, don't
+                // leave playback stuck paused on a stale DPMS state
+                app.set_screen_off(false);
+            }
+            e => {
+                warn!("Unknown power event: {e:?}");
+            }
+        }
+    }
+}
+
+impl Dispatch<ZwlrForeignToplevelManagerV1, ()> for App {
+    fn event(
+        app: &mut Self,
+        _proxy: &ZwlrForeignToplevelManagerV1,
+        event: <ZwlrForeignToplevelManagerV1 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            ManagerEvent::Toplevel { toplevel } => {
+                app.toplevels
+                    .insert(toplevel.id(), ToplevelState::default());
+            }
+            // Compositor is done with the manager
+            ManagerEvent::Finished => app.toplevel_manager = None,
+            _ => {}
+        }
+    }
+
+    event_created_child!(App, ZwlrForeignToplevelManagerV1, [
+        EVT_TOPLEVEL_OPCODE => (ZwlrForeignToplevelHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for App {
+    fn event(
+        app: &mut Self,
+        proxy: &ZwlrForeignToplevelHandleV1,
+        event: <ZwlrForeignToplevelHandleV1 as Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let id = proxy.id();
+        // https://docs.rs/wayland-protocols-wlr/0.3.12/wayland_protocols_wlr/foreign_toplevel/v1/client/zwlr_foreign_toplevel_handle_v1/enum.Event.html
+        match event {
+            // The array is a sequence of u32 `state` enum values; it shows current state, not a delta!
+            ToplevelEvent::State { state } => {
+                if let Some(t) = app.toplevels.get_mut(&id) {
+                    // Reset all state
+                    t.fullscreen = false;
+                    t.maximized = false;
+                    t.activated = false;
+                    debug_assert!(state.len() % 4 == 0);
+                    for chunk in state.chunks_exact(4) {
+                        match u32::from_ne_bytes(chunk.try_into().expect("expected number")) {
+                            0 => t.maximized = true,
+                            1 => {} // Minimized
+                            2 => t.activated = true,
+                            3 => t.fullscreen = true,
+                            s => {
+                                debug!("unknown toplevel state value: {s}");
+                            }
+                        }
+                    }
+                }
+            }
+            ToplevelEvent::OutputEnter { output } => {
+                if let Some(t) = app.toplevels.get_mut(&id) {
+                    t.outputs.insert(output.id());
+                }
+            }
+            ToplevelEvent::OutputLeave { output } => {
+                if let Some(t) = app.toplevels.get_mut(&id) {
+                    t.outputs.remove(&output.id());
+                }
+            }
+            // Marks the end of a batch of the events above; only now is the
+            // toplevel's state consistent enough to act on
+            ToplevelEvent::Done => app.recompute_hidden(),
+            ToplevelEvent::Closed => {
+                app.toplevels.remove(&id);
+                proxy.destroy();
+                app.recompute_hidden();
+            }
+            _ => {}
+        }
     }
 }
 

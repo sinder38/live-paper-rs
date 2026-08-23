@@ -41,6 +41,7 @@ struct Programs {
 pub struct Renderer {
     pattern: Pattern,
     programs: Option<Programs>,
+    paused: bool,
 }
 
 impl Renderer {
@@ -48,7 +49,16 @@ impl Renderer {
         Self {
             pattern,
             programs: None,
+            paused: false,
         }
+    }
+
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
+
+    pub fn resume(&mut self) {
+        self.paused = false;
     }
 
     pub fn init(&mut self, ctx: BackendCtx) -> Result<(), Box<dyn std::error::Error>> {
@@ -65,6 +75,9 @@ impl Renderer {
     }
 
     pub fn render(&mut self, gl: &glow::Context, width: i32, height: i32, time: u32) {
+        if self.paused {
+            return;
+        }
         let Some(programs) = &self.programs else {
             return;
         };

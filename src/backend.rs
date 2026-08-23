@@ -1,5 +1,7 @@
 use std::ffi::c_void;
 
+use log::debug;
+
 use crate::player::Player;
 use crate::render::Renderer;
 
@@ -33,6 +35,22 @@ impl Backend {
         match self {
             Backend::Mpv(p) => p.render(gl, width, height, time),
             Backend::Glow(r) => r.render(gl, width, height, time),
+        }
+    }
+
+    pub fn pause(&mut self) {
+        debug!("Backend paused");
+        match self {
+            Backend::Mpv(p) => p.pause(),
+            Backend::Glow(r) => r.pause(),
+        }
+    }
+
+    pub fn resume(&mut self) {
+        debug!("Backend resumed");
+        match self {
+            Backend::Mpv(p) => p.resume(),
+            Backend::Glow(r) => r.resume(),
         }
     }
 }

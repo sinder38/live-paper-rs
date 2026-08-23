@@ -4,6 +4,7 @@ use libmpv2::Mpv;
 use libmpv2::render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamApiType};
 
 use khronos_egl as egl;
+use log::error;
 
 use crate::backend::BackendCtx;
 use crate::config::PlayerConfig;
@@ -95,6 +96,18 @@ impl Player {
             // Reversed: flip for normal, no flip for flipped
             let flip = true;
             let _ = render.render::<()>(0, width, height, flip);
+        }
+    }
+
+    pub fn pause(&mut self) {
+        if let Err(e) = self.mpv.set_property("pause", true) {
+            error!("Failed to pause mpv: {e}");
+        }
+    }
+
+    pub fn resume(&mut self) {
+        if let Err(e) = self.mpv.set_property("pause", false) {
+            error!("Failed to resume mpv: {e}");
         }
     }
 }
