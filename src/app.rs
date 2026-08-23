@@ -196,9 +196,7 @@ impl App {
         let surface = self.layer.wl_surface();
         surface.frame(qh, surface.clone());
 
-        // Write to socket
-        self.conn.flush().ok();
-        // Present new frame
+        // Present new frame (like commit)
         self.egl.swap_buffers(window).expect("swap buffers");
     }
 }
