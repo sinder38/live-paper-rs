@@ -106,7 +106,7 @@ Licensed under the <a href="LICENSE">MIT license</a>.
 
 <sub>
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in live-paper-rs by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+for inclusion in live-paper-rs by you, as defined in the MIT, shall be 
+licensed as above, without any additional terms or conditions.
 </sub>
 </content>
