@@ -268,7 +268,6 @@ impl App {
 
     /// Call after mutating `occluded`/`screen_off`; only touches the backend
     /// on the OR'd value's edge, to avoid redundant mpv calls
-
     pub fn apply_pause_edge(&mut self, qh: &QueueHandle<Self>) {
         let now_paused = self.should_pause();
         if now_paused {
@@ -606,9 +605,8 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for App {
                     t.fullscreen = false;
                     t.maximized = false;
                     t.activated = false;
-                    debug_assert!(state.len() % 4 == 0);
-                    for chunk in state.chunks_exact(4) {
-                        match u32::from_ne_bytes(chunk.try_into().expect("expected number")) {
+                    for chunk in state.as_chunks::<4>().0 {
+                        match u32::from_ne_bytes(*chunk) {
                             0 => t.maximized = true,
                             1 => {} // Minimized
                             2 => t.activated = true,
