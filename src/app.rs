@@ -380,6 +380,7 @@ impl CompositorHandler for App {
         _s: &wl_surface::WlSurface,
         output: &wl_output::WlOutput,
     ) {
+        let is_new_output = self.output.as_ref().map(Proxy::id) != Some(output.id());
         self.output = Some(output.clone());
         if is_new_output && let Some(manager) = &self.power_manager {
             // Rebind DPMS tracking to the output we're actually on now
