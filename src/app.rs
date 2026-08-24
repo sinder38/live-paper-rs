@@ -176,7 +176,7 @@ impl App {
             if config.pausing.on_fullscreen || config.pausing.on_maximized {
                 // Protocol reference:
                 // https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-foreign-toplevel-management-unstable-v1.xml?ref_type=heads
-                match globals.bind(qh, 1..=3, ()) {
+                match globals.bind(qh, 2..=3, ()) {
                     Ok(manager) => Some(manager),
                     Err(err) => {
                         log::error!(
