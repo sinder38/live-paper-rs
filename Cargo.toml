@@ -1,6 +1,6 @@
 [package]
 name = "live-paper"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A Wayland video wallpaper engine"
 repository = "https://github.com/sinder38/live-paper-rs"
