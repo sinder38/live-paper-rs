@@ -90,6 +90,8 @@ impl Default for LayerConfig {
 pub struct PausingConfig {
     /// Pause when fullscreening an application (per workspace)
     pub on_fullscreen: bool,
+    /// Pause when an application is maximized (not fullscreen)
+    pub on_maximized: bool,
     /// When gamemode is on
     pub on_gamemode: bool,
     /// When the screen is off
@@ -100,6 +102,7 @@ impl Default for PausingConfig {
     fn default() -> Self {
         Self {
             on_fullscreen: true,
+            on_maximized: true,
             on_gamemode: true,
             on_screen_off: true,
         }

@@ -47,6 +47,7 @@ use crate::{
 struct ToplevelState {
     fullscreen: bool,
     maximized: bool,
+    /// Window is active, needed for per-workspace handling
     activated: bool,
     /// Every output this toplevel currently reports being visible on
     outputs: HashSet<ObjectId>,
@@ -54,13 +55,21 @@ struct ToplevelState {
 
 impl ToplevelState {
     /// Is the wallpaper hidden?
-    fn to_hide(&self, our_output: Option<&ObjectId>) -> bool {
-        our_output.is_some_and(|o| self.outputs.contains(o))
-            && self.activated
-            && (self.fullscreen || self.maximized)
+    fn to_hide(
+        &self,
+        our_output: Option<&ObjectId>,
+        on_fullscreen: bool,
+        on_maximized: bool,
+    ) -> bool {
+        let fullscreen_or_maximized =
+            (on_fullscreen && self.fullscreen) || (on_maximized && self.maximized);
+        let output_visible = our_output.is_some_and(|o| self.outputs.contains(o));
+
+        output_visible && self.activated && fullscreen_or_maximized
     }
 }
 
+// TODO: maybe I should group these...
 pub struct App {
     conn: Connection,
     registry_state: RegistryState,
@@ -97,6 +106,10 @@ pub struct App {
     toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
     /// State of every currently open toplevel panels
     toplevels: HashMap<ObjectId, ToplevelState>,
+    /// Pause when a toplevel is fullscreen
+    pause_on_fullscreen: bool,
+    /// Pause when a toplevel is maximized (not fullscreen)
+    pause_on_maximized: bool,
 }
 
 impl App {
@@ -159,23 +172,23 @@ impl App {
             None
         };
 
-        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> = if config.pausing.on_fullscreen
-        {
-            // Protocol reference:
-            // https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-foreign-toplevel-management-unstable-v1.xml?ref_type=heads
-            match globals.bind(qh, 1..=3, ()) {
-                Ok(manager) => Some(manager),
-                Err(err) => {
-                    log::error!(
-                        "Failed to bind wlr-foreign-toplevel-management-v1; \
+        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> =
+            if config.pausing.on_fullscreen || config.pausing.on_maximized {
+                // Protocol reference:
+                // https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-foreign-toplevel-management-unstable-v1.xml?ref_type=heads
+                match globals.bind(qh, 1..=3, ()) {
+                    Ok(manager) => Some(manager),
+                    Err(err) => {
+                        log::error!(
+                            "Failed to bind wlr-foreign-toplevel-management-v1; \
                              fullscreen/maximized-window pausing disabled: {err}"
-                    );
-                    None
+                        );
+                        None
+                    }
                 }
-            }
-        } else {
-            None
-        };
+            } else {
+                None
+            };
 
         layer.commit();
 
@@ -205,6 +218,8 @@ impl App {
             power: None,
             toplevel_manager,
             toplevels: HashMap::new(),
+            pause_on_fullscreen: config.pausing.on_fullscreen,
+            pause_on_maximized: config.pausing.on_maximized,
         })
     }
 
@@ -270,10 +285,13 @@ impl App {
     /// Recompute `to_hide` from the current toplevel states
     fn recompute_hidden(&mut self, qh: &QueueHandle<Self>) {
         let our_output = self.output.as_ref().map(Proxy::id);
-        let hidden = self
-            .toplevels
-            .values()
-            .any(|t| t.to_hide(our_output.as_ref()));
+        let hidden = self.toplevels.values().any(|t| {
+            t.to_hide(
+                our_output.as_ref(),
+                self.pause_on_fullscreen,
+                self.pause_on_maximized,
+            )
+        });
         self.set_hidden(hidden, qh);
     }
 
