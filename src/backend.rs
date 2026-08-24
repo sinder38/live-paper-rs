@@ -38,6 +38,7 @@ impl Backend {
         }
     }
 
+    // TODO: add per monitor/workspace logging
     pub fn pause(&mut self) {
         debug!("Backend paused");
         match self {
