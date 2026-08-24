@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use smithay_client_toolkit::reexports::client::{
     Connection, Dispatch, Proxy, QueueHandle, WEnum,
     backend::ObjectId,
@@ -142,17 +142,40 @@ impl App {
         let viewport = viewporter.get_viewport(layer.wl_surface(), qh, ());
 
         // Neither of these wlr-only protocols is guaranteed to exist
-        let power_manager: Option<ZwlrOutputPowerManagerV1> = globals.bind(qh, 1..=1, ()).ok();
-        if power_manager.is_none() {
-            warn!("Compositor lacks wlr-output-power-management-v1; DPMS-driven pausing disabled");
-        }
-        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> =
-            globals.bind(qh, 1..=3, ()).ok();
-        if toplevel_manager.is_none() {
-            warn!(
-                "Compositor lacks wlr-foreign-toplevel-management-v1; fullscreen/maximized-window pausing disabled"
-            );
-        }
+        let power_manager: Option<ZwlrOutputPowerManagerV1> = if config.pausing.on_screen_off {
+            // Protocol reference:
+            // https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-output-power-management-unstable-v1.xml?ref_type=heads
+            match globals.bind(qh, 1..=1, ()) {
+                Ok(manager) => Some(manager),
+                Err(err) => {
+                    error!(
+                        "Failed to bind wlr-output-power-management-v1; \
+                        `on_screen_off` pausing is disabled: {err}"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let toplevel_manager: Option<ZwlrForeignToplevelManagerV1> = if config.pausing.on_fullscreen
+        {
+            // Protocol reference:
+            // https://gitlab.freedesktop.org/wlroots/wlr-protocols/-/blob/master/unstable/wlr-foreign-toplevel-management-unstable-v1.xml?ref_type=heads
+            match globals.bind(qh, 1..=3, ()) {
+                Ok(manager) => Some(manager),
+                Err(err) => {
+                    log::error!(
+                        "Failed to bind wlr-foreign-toplevel-management-v1; \
+                             fullscreen/maximized-window pausing disabled: {err}"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         layer.commit();
 

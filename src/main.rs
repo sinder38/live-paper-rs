@@ -62,13 +62,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     WaylandSource::new(conn, event_queue).insert(loop_handle.clone())?;
 
-    let (gamemode_tx, gamemode_rx) = channel::channel();
-    gamemode::watch(gamemode_tx);
-    loop_handle.insert_source(gamemode_rx, |event, _, app| {
-        if let channel::Event::Msg(active) = event {
-            app.set_gamemode(active);
-        }
-    })?;
+    if config.pausing.on_gamemode {
+        // Watch gamemode state
+        let (gamemode_tx, gamemode_rx) = channel::channel();
+        gamemode::watch(gamemode_tx);
+        loop_handle.insert_source(gamemode_rx, |event, _, app| {
+            if let channel::Event::Msg(active) = event {
+                app.set_gamemode(active);
+            }
+        })?;
+    }
 
     while !app.exit() {
         event_loop.dispatch(None, &mut app)?;
