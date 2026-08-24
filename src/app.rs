@@ -219,58 +219,62 @@ impl App {
     }
 
     /// Call when obscured or hidden (assumed)
-    fn set_hidden(&mut self, hidden: bool) {
+    fn set_hidden(&mut self, hidden: bool, qh: &QueueHandle<Self>) {
         // Skip if applied
         if self.hidden == hidden {
             return;
         }
         // Re-compute and re-apply
         self.hidden = hidden;
-        self.apply_pause_edge();
+        self.apply_pause_edge(qh);
     }
 
     /// Call when screen is off
-    fn set_screen_off(&mut self, screen_off: bool) {
+    fn set_screen_off(&mut self, screen_off: bool, qh: &QueueHandle<Self>) {
         // Skip if applied
         if self.screen_off == screen_off {
             return;
         }
         // Re-compute and re-apply
         self.screen_off = screen_off;
-        self.apply_pause_edge();
+        self.apply_pause_edge(qh);
     }
 
     /// Call when gamemode is on
-    pub fn set_gamemode(&mut self, active: bool) {
+    pub fn set_gamemode(&mut self, active: bool, qh: &QueueHandle<Self>) {
         // Skip if applied
         if self.gamemode_active == active {
             return;
         }
         // Re-compute and re-apply
         self.gamemode_active = active;
-        self.apply_pause_edge();
+        self.apply_pause_edge(qh);
     }
 
     /// Call after mutating `occluded`/`screen_off`; only touches the backend
     /// on the OR'd value's edge, to avoid redundant mpv calls
 
-    pub fn apply_pause_edge(&mut self) {
+    pub fn apply_pause_edge(&mut self, qh: &QueueHandle<Self>) {
         let now_paused = self.should_pause();
         if now_paused {
             self.backend.pause();
         } else {
             self.backend.resume();
+            // While paused, draw() stops re-arming the frame callback so without this black screen will happen
+            if self.egl_window.is_some() {
+                self.draw(qh, 0);
+            }
         }
     }
 
     /// Recompute `to_hide` from the current toplevel states
-    fn recompute_hidden(&mut self) {
+    fn recompute_hidden(&mut self, qh: &QueueHandle<Self>) {
         let our_output = self.output.as_ref().map(Proxy::id);
         let hidden = self
             .toplevels
             .values()
             .any(|t| t.to_hide(our_output.as_ref()));
-        self.set_hidden(hidden);
+        self.set_hidden(hidden, qh);
     }
 
     /// Get output's hardware resolution
@@ -340,10 +344,8 @@ impl App {
         let surface = self.layer.wl_surface();
 
         if self.should_pause() {
-            // Skip the actual render/present,
-            surface.frame(qh, surface.clone());
-            surface.commit();
-            self.conn.flush().ok();
+            // nothing to render.
+            // apply_pause_edge() starts the loop back up on resume
             return;
         }
 
@@ -379,13 +381,15 @@ impl CompositorHandler for App {
         output: &wl_output::WlOutput,
     ) {
         self.output = Some(output.clone());
-        if self.power.is_none()
-            && let Some(manager) = &self.power_manager
-        {
+        if is_new_output && let Some(manager) = &self.power_manager {
+            // Rebind DPMS tracking to the output we're actually on now
+            if let Some(old) = self.power.take() {
+                old.destroy();
+            }
             self.power = Some(manager.get_output_power(output, qh, ()));
         }
         // Toplevels may have reported their outputs before ours was known
-        self.recompute_hidden();
+        self.recompute_hidden(qh);
         self.apply_size();
     }
 
@@ -515,22 +519,22 @@ impl Dispatch<ZwlrOutputPowerV1, ()> for App {
         event: <ZwlrOutputPowerV1 as Proxy>::Event,
         _: &(),
         _: &Connection,
-        _: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
     ) {
         match event {
             PowerEvent::Mode {
                 mode: WEnum::Value(PowerMode::On),
-            } => app.set_screen_off(false),
+            } => app.set_screen_off(false, qh),
             PowerEvent::Mode {
                 mode: WEnum::Value(PowerMode::Off),
-            } => app.set_screen_off(true),
+            } => app.set_screen_off(true, qh),
             PowerEvent::Failed => {
                 warn!("zwlr_output_power_v1 failed; falling back to occlusion detection only");
                 proxy.destroy();
                 app.power = None;
                 // No more mode updates will come for this output, don't
                 // leave playback stuck paused on a stale DPMS state
-                app.set_screen_off(false);
+                app.set_screen_off(false, qh);
             }
             e => {
                 warn!("Unknown power event: {e:?}");
@@ -571,7 +575,7 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for App {
         event: <ZwlrForeignToplevelHandleV1 as Proxy>::Event,
         _: &(),
         _: &Connection,
-        _: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
     ) {
         let id = proxy.id();
         // https://docs.rs/wayland-protocols-wlr/0.3.12/wayland_protocols_wlr/foreign_toplevel/v1/client/zwlr_foreign_toplevel_handle_v1/enum.Event.html
@@ -609,11 +613,11 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for App {
             }
             // Marks the end of a batch of the events above; only now is the
             // toplevel's state consistent enough to act on
-            ToplevelEvent::Done => app.recompute_hidden(),
+            ToplevelEvent::Done => app.recompute_hidden(qh),
             ToplevelEvent::Closed => {
                 app.toplevels.remove(&id);
                 proxy.destroy();
-                app.recompute_hidden();
+                app.recompute_hidden(qh);
             }
             _ => {}
         }

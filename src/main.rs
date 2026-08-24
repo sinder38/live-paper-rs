@@ -66,9 +66,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Watch gamemode state
         let (gamemode_tx, gamemode_rx) = channel::channel();
         gamemode::watch(gamemode_tx);
-        loop_handle.insert_source(gamemode_rx, |event, _, app| {
+        let gamemode_qh = qh.clone();
+        loop_handle.insert_source(gamemode_rx, move |event, _, app| {
             if let channel::Event::Msg(active) = event {
-                app.set_gamemode(active);
+                app.set_gamemode(active, &gamemode_qh);
             }
         })?;
     }
