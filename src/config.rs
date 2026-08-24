@@ -19,6 +19,9 @@ pub struct Config {
     pub player: PlayerConfig,
     /// Wayland layer configuration
     pub layer: LayerConfig,
+    /// Pausing config
+    #[serde(alias = "pause")]
+    pub pausing: PausingConfig,
     /// Enable debug logging
     pub debug: DebugConfig,
 }
@@ -77,6 +80,31 @@ impl Default for LayerConfig {
         Self {
             layer: "background".to_string(),
             exclusive_zone: -1,
+        }
+    }
+}
+
+/// Configures automatic pausing for the backend
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct PausingConfig {
+    /// Pause when fullscreening an application (per workspace)
+    pub on_fullscreen: bool,
+    /// Pause when an application is maximized (not fullscreen)
+    pub on_maximized: bool,
+    /// When gamemode is on
+    pub on_gamemode: bool,
+    /// When the screen is off
+    pub on_screen_off: bool,
+}
+
+impl Default for PausingConfig {
+    fn default() -> Self {
+        Self {
+            on_fullscreen: true,
+            on_maximized: true,
+            on_gamemode: true,
+            on_screen_off: true,
         }
     }
 }

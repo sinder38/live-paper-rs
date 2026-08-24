@@ -41,5 +41,16 @@ fill = true
 layer = "background"
 exclusive_zone = -1
 
+[pause]
+# Pause when an application is fullscreen, individually for each workspace
+on_fullscreen = true
+# Pause when an application is maximized, individually for each workspace
+on_maximized = true
+# Pause when gamemode is on
+on_gamemode = true
+# Pause when screen is off
+on_screen_off = true
+
+
 [debug]
 enabled = false

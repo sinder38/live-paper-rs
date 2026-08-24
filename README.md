@@ -93,8 +93,8 @@ Pass a specific file with `-c/--config-path`.
 ## TODO
 
 1. Daemon persistence and dynamic wallpaper swap
-2. Halt when not on screen (maybe)
 3. Publish on more package managers
+4. Flag ignored config options
 
 #### License
 
