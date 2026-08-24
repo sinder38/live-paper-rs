@@ -85,6 +85,7 @@ jobs:
 
   aur-source:
     needs: release
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -108,6 +109,7 @@ jobs:
 
   aur-bin:
     needs: release
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
