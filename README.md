@@ -9,10 +9,9 @@
 
 </div>
 
-
-<!-- TODO: showcase gif/screenshot once a properly-licensed wallpaper is available -->
-
 Render any mpv-playable video (or stream) onto the background layer of a Wayland compositor.
+
+https://github.com/user-attachments/assets/d0034963-e6ca-4771-bda6-bbc3a4dcfbac
 
 ## Requirements
 
