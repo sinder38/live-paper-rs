@@ -34,6 +34,19 @@ git clone https://aur.archlinux.org/live-paper.git
 cd live-paper && makepkg -si
 ```
 
+### Ubuntu / Debian / Others
+
+No prebuilt package yet; use the prebuilt GitHub release binary (no compilation needed):
+
+```sh
+sudo apt-get update
+# Assuming your already have Wayland deps
+sudo apt-get install -y libmpv2
+
+curl -L https://github.com/sinder38/live-paper-rs/releases/latest/download/live-paper-linux-x86_64.tar.gz | tar xz
+sudo install -Dm755 live-paper-linux-x86_64 /usr/local/bin/live-paper
+```
+
 ### crates.io
 
 Builds from source; the libmpv, EGL and Wayland development headers must be present.
