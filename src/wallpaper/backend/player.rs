@@ -6,7 +6,7 @@ use libmpv2::render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamA
 use khronos_egl as egl;
 use log::error;
 
-use crate::backend::BackendCtx;
+use super::BackendCtx;
 use crate::config::PlayerConfig;
 
 /// Wraps an mpv instance and its OpenGL render context
@@ -59,7 +59,7 @@ impl Player {
         // Free-form passthrough for anything not modeled above
         for (name, value) in &config.mpv_options {
             if let Err(e) = mpv.set_property(name.as_str(), value.as_str()) {
-                eprintln!("Failed to set mpv option {name}={value}: {e}");
+                error!("Failed to set mpv option {name}={value}: {e}");
             }
         }
 
@@ -109,5 +109,37 @@ impl Player {
         if let Err(e) = self.mpv.set_property("pause", false) {
             error!("Failed to resume mpv: {e}");
         }
+    }
+
+    /// Swap the playing file without tearing down the render context
+    pub fn set_video(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if !path.contains("://") && !std::path::Path::new(path).exists() {
+            return Err(format!("video file not found: {path}").into());
+        }
+
+        self.mpv.command("loadfile", &[path])?;
+        self.path = path.to_string();
+        Ok(())
+    }
+
+    pub fn set_speed(&mut self, speed: f64) -> Result<(), Box<dyn std::error::Error>> {
+        self.mpv.set_property("speed", speed)?;
+        Ok(())
+    }
+
+    pub fn set_mute(&mut self, mute: bool) -> Result<(), Box<dyn std::error::Error>> {
+        self.mpv.set_property("mute", mute)?;
+        Ok(())
+    }
+
+    /// See `fill` in `PlayerConfig`: crop to fill, or letterbox
+    pub fn set_fill(&mut self, fill: bool) -> Result<(), Box<dyn std::error::Error>> {
+        self.mpv
+            .set_property("panscan", if fill { 1.0 } else { 0.0 })?;
+        Ok(())
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
