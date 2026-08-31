@@ -110,6 +110,8 @@ pub struct App {
     pause_on_fullscreen: bool,
     /// Pause when a toplevel is maximized (not fullscreen)
     pause_on_maximized: bool,
+    /// True while a wl_surface.frame callback is outstanding
+    frame_scheduled: bool,
 }
 
 impl App {
@@ -220,6 +222,7 @@ impl App {
             toplevels: HashMap::new(),
             pause_on_fullscreen: config.pausing.on_fullscreen,
             pause_on_maximized: config.pausing.on_maximized,
+            frame_scheduled: false,
         })
     }
 
@@ -275,7 +278,7 @@ impl App {
         } else {
             self.backend.resume();
             // While paused, draw() stops re-arming the frame callback so without this black screen will happen
-            if self.egl_window.is_some() {
+            if self.egl_window.is_some() && !self.frame_scheduled {
                 self.draw(qh, 0);
             }
         }
@@ -373,6 +376,7 @@ impl App {
 
         // Schedule the next frame
         surface.frame(qh, surface.clone());
+        self.frame_scheduled = true;
 
         // Present new frame (like commit)
         self.egl.swap_buffers(window).expect("swap buffers");
@@ -387,6 +391,7 @@ impl CompositorHandler for App {
         _surface: &wl_surface::WlSurface,
         time: u32,
     ) {
+        self.frame_scheduled = false;
         self.draw(qh, time);
     }
 
