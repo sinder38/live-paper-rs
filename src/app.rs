@@ -351,6 +351,31 @@ impl App {
         }
     }
 
+    /// True if the backend needs periodic restarts (mpv leak workaround)
+    #[cfg(feature = "libmpv-restart")]
+    pub fn needs_backend_restart(&self) -> bool {
+        self.backend.needs_restart()
+    }
+
+    /// Recreate the backend
+    #[cfg(feature = "libmpv-restart")]
+    pub fn restart_backend(&mut self) {
+        let Some(window) = self.egl_window.as_ref() else {
+            return;
+        };
+        if let Err(e) = self.egl.bind(window) {
+            error!("Failed to bind EGL context for scheduled backend restart: {e}");
+            return;
+        }
+        let display_ptr = self.conn.backend().display_ptr() as *mut c_void;
+        if let Err(e) = self.backend.restart(BackendCtx {
+            gl: &window.gl,
+            display_ptr,
+        }) {
+            error!("Scheduled backend restart failed: {e}");
+        }
+    }
+
     fn draw(&mut self, qh: &QueueHandle<Self>, time: u32) {
         debug_assert!(
             self.egl_window.is_some(),

@@ -39,6 +39,7 @@ pub enum BackendKind {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "libmpv-restart", derive(Clone))]
 #[serde(default)]
 pub struct PlayerConfig {
     /// Video path, overridable by the CLI arg
@@ -52,6 +53,9 @@ pub struct PlayerConfig {
     /// Raw passthrough to `mpv.set_property`, applied after the typed fields!
     /// Full option list: https://mpv.io/manual/master/#options
     pub mpv_options: HashMap<String, String>,
+    /// Hours between forced mpv restarts; works around a known upstream leak
+    #[cfg(feature = "libmpv-restart")]
+    pub mpv_restart_hours: u64,
 }
 
 impl Default for PlayerConfig {
@@ -63,6 +67,8 @@ impl Default for PlayerConfig {
             hwdec: "auto".to_string(),
             fill: true,
             mpv_options: HashMap::new(),
+            #[cfg(feature = "libmpv-restart")]
+            mpv_restart_hours: 1,
         }
     }
 }

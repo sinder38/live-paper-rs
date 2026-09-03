@@ -54,4 +54,22 @@ impl Backend {
             Backend::Glow(r) => r.resume(),
         }
     }
+
+    /// True if this backend needs periodic restarts (mpv leak workaround)
+    #[cfg(feature = "libmpv-restart")]
+    pub fn needs_restart(&self) -> bool {
+        match self {
+            Backend::Mpv(p) => p.needs_restart(),
+            Backend::Glow(_) => false,
+        }
+    }
+
+    /// Recreate the backend in place, e.g. to reclaim a leaking mpv instance
+    #[cfg(feature = "libmpv-restart")]
+    pub fn restart(&mut self, ctx: BackendCtx) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            Backend::Mpv(p) => p.restart(ctx),
+            Backend::Glow(_) => Ok(()),
+        }
+    }
 }

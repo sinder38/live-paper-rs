@@ -7,6 +7,11 @@ repository = "https://github.com/sinder38/live-paper-rs"
 homepage = "https://github.com/sinder38/live-paper-rs"
 license = "MIT"
 
+[features]
+default = ["libmpv-restart"]
+# Periodically restart mpv to work around mpv memory leak
+# libmpv-restart = []
+
 [dependencies]
 clap = { version = "4.6.4", features = ["derive"] }
 log = {version = "0.4"}

@@ -7,8 +7,12 @@ mod player;
 mod render;
 
 use std::path::PathBuf;
+#[cfg(feature = "libmpv-restart")]
+use std::time::Duration;
 
 use app::App;
+#[cfg(feature = "libmpv-restart")]
+use calloop::timer::{TimeoutAction, Timer};
 use calloop::{EventLoop, channel};
 use calloop_wayland_source::WaylandSource;
 use clap::Parser;
@@ -61,6 +65,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let loop_handle = event_loop.handle();
 
     WaylandSource::new(conn, event_queue).insert(loop_handle.clone())?;
+
+    #[cfg(feature = "libmpv-restart")]
+    if config.player.mpv_restart_hours > 0 && app.needs_backend_restart() {
+        let interval = Duration::from_secs(config.player.mpv_restart_hours * 3600);
+        warn!(
+            "mpv has a known memory leak \
+             (mpv-player/mpv#15099); restarting playback every {}h to bound memory growth",
+            config.player.mpv_restart_hours
+        );
+        loop_handle.insert_source(Timer::from_duration(interval), move |_deadline, _, app| {
+            app.restart_backend();
+            TimeoutAction::ToDuration(interval)
+        })?;
+    }
 
     if config.pausing.on_gamemode {
         // Watch gamemode state
