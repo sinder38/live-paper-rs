@@ -6,16 +6,18 @@ use calloop::generic::Generic;
 use calloop::{EventLoop, Interest, LoopHandle, Mode, PostAction, channel};
 use log::{debug, error, info, warn};
 
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::ipc::{
     RenderCmd, RenderEvent, Request, Response, State, read_request, socket_path, write_line,
 };
 
 mod child;
 mod restart;
+mod watch;
 
 use child::{Child, ChildMsg};
 use restart::RestartPolicy;
+use watch::ConfigWatch;
 
 /// How long a replacement gets to draw its first frame before we give up on it
 const READY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -48,6 +50,8 @@ pub struct Daemon {
     policy: RestartPolicy,
     /// Memory used as baseline
     baseline_mb: Option<u64>,
+    /// Config file watcher, `None` when `auto_reload` is off
+    watch: Option<ConfigWatch>,
 
     /// Consecutive crashes; respawning stops once this hits `MAX_FAILURES`
     failures: u32,
@@ -66,7 +70,7 @@ impl Daemon {
         let (sender, receiver) = channel::channel();
         let policy = RestartPolicy::new(&config.restart);
 
-        let daemon = Self {
+        let mut daemon = Self {
             config,
             config_path,
             video,
@@ -78,11 +82,24 @@ impl Daemon {
             sender,
             policy,
             baseline_mb: None,
+            watch: None,
             failures: 0,
             respawn_at: None,
             exit: false,
         };
+        daemon.sync_watch();
         (daemon, receiver)
+    }
+
+    /// Start or stop watching config file to match `auto_reload`
+    fn sync_watch(&mut self) {
+        if !self.config.auto_reload {
+            self.watch = None;
+        } else if self.watch.is_none() {
+            let path = self.config_path.clone().unwrap_or_else(config::config_path);
+            debug!("Watching config at {}", path.display());
+            self.watch = Some(ConfigWatch::new(path));
+        }
     }
 
     fn spawn(&mut self) -> Result<Child, Box<dyn std::error::Error>> {
@@ -260,6 +277,15 @@ impl Daemon {
             child.kill();
         }
 
+        // Config watcher
+        if self.watch.as_mut().is_some_and(ConfigWatch::due) {
+            match self.handle_reload() {
+                Response::Error { message } => error!("{message}"),
+                _ => info!("Config file changed, reloaded"),
+            }
+        }
+
+        // Restart watcher
         if let Some(reason) = self.policy.due(self.current.as_ref()) {
             info!("Replacing the renderer: {reason}");
             if let Err(e) = self.restart() {
@@ -275,6 +301,7 @@ impl Daemon {
             self.respawn_at,
             self.pending_deadline,
             self.policy.deadline(),
+            self.watch.as_ref().map(ConfigWatch::deadline),
         ]
         .into_iter()
         .flatten()
@@ -349,7 +376,6 @@ impl Daemon {
             self.policy
                 .init_policy(&video, self.baseline_mb.unwrap_or(0));
             self.video = video.clone();
-            self.config.player.path = Some(video.clone());
             self.broadcast(RenderCmd::SetVideo { path: video });
         }
         if let Some(speed) = speed {
@@ -381,25 +407,27 @@ impl Daemon {
             }
         };
 
-        let mut policy = RestartPolicy::new(&new.restart);
-        let next_video = new
+        let restart_needed = self.config.needs_restart(&new);
+
+        // Live player tweaks go straight through; video changes only when file's
+        // `path` changed, so CLI or `set` video survives unrelated edits
+        let video = new
             .player
             .path
             .clone()
-            .unwrap_or_else(|| self.video.clone());
-        policy.init_policy(&next_video, self.baseline_mb.unwrap_or(0));
+            .filter(|p| Some(p) != self.config.player.path.as_ref());
 
-        let restart_needed = self.config.needs_restart(&new);
+        let mut policy = RestartPolicy::new(&new.restart);
+        let next_video = video.as_ref().unwrap_or(&self.video);
+        policy.init_policy(next_video, self.baseline_mb.unwrap_or(0));
 
-        // Live player tweaks go straight through; the video only changes if the
-        // config actually names a different one
-        let video = new.player.path.clone().filter(|p| *p != self.video);
         let speed = (new.player.speed != self.config.player.speed).then_some(new.player.speed);
         let mute = (new.player.mute != self.config.player.mute).then_some(new.player.mute);
         let fill = (new.player.fill != self.config.player.fill).then_some(new.player.fill);
 
         self.config = new;
         self.policy = policy;
+        self.sync_watch();
 
         if restart_needed {
             // The new config is already stored, so the replacement picks it up

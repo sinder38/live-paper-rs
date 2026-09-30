@@ -10,9 +10,11 @@ use crate::APP_NAME;
 /// Config is loaded from `$XDG_CONFIG_HOME/live-paper/config.toml`
 ///
 /// Every field has a default, so an absent or partial file is fine.
-#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    /// Daemon reloads config when file changes
+    pub auto_reload: bool,
     /// Which frame source to use
     pub backend: BackendKind,
     /// Mpv player confiruration
@@ -27,6 +29,20 @@ pub struct Config {
     /// When to replace the renderer on our own. Owned by `daemon::restart`,
     /// which is where the libmpv leak this works around is dealt with
     pub restart: RestartConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            auto_reload: true,
+            backend: BackendKind::default(),
+            player: PlayerConfig::default(),
+            layer: LayerConfig::default(),
+            pausing: PausingConfig::default(),
+            debug: DebugConfig::default(),
+            restart: RestartConfig::default(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
@@ -180,7 +196,7 @@ impl Config {
 }
 
 /// Get config path
-fn config_path() -> PathBuf {
+pub(crate) fn config_path() -> PathBuf {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
@@ -218,6 +234,12 @@ mod tests {
     fn backend_defaults_to_mpv() {
         let cfg: Config = toml::from_str("").unwrap();
         assert_eq!(cfg.backend, BackendKind::Mpv);
+    }
+
+    #[test]
+    fn auto_reload_defaults_on() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert!(cfg.auto_reload);
     }
 
     #[test]

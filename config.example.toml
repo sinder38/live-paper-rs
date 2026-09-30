@@ -1,5 +1,8 @@
 # Example live-paper config
 
+# Daemon applies edits to this file without restarting
+auto_reload = true
+
 # Choice of redering backend
 # mpv/player - render video (yes, you want this)
 # pattern - render one of the test patterns
