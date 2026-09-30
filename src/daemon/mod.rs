@@ -15,9 +15,7 @@ mod child;
 mod restart;
 
 use child::{Child, ChildMsg};
-use restart::Policy;
-
-pub use restart::RestartConfig;
+use restart::RestartPolicy;
 
 /// How long a replacement gets to draw its first frame before we give up on it
 const READY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -46,8 +44,10 @@ pub struct Daemon {
     next_id: u64,
     sender: channel::Sender<ChildMsg>,
 
-    /// When the renderer should be replaced without anyone asking
-    policy: Policy,
+    /// When renderer should be replaced
+    policy: RestartPolicy,
+    /// Memory used as baseline
+    baseline_mb: Option<u64>,
 
     /// Consecutive crashes; respawning stops once this hits `MAX_FAILURES`
     failures: u32,
@@ -64,7 +64,7 @@ impl Daemon {
         video: String,
     ) -> (Self, channel::Channel<ChildMsg>) {
         let (sender, receiver) = channel::channel();
-        let policy = Policy::new(&config.restart);
+        let policy = RestartPolicy::new(&config.restart);
 
         let daemon = Self {
             config,
@@ -77,6 +77,7 @@ impl Daemon {
             next_id: 0,
             sender,
             policy,
+            baseline_mb: None,
             failures: 0,
             respawn_at: None,
             exit: false,
@@ -104,7 +105,6 @@ impl Daemon {
         let child = self.spawn()?;
         self.pending_deadline = Some(Instant::now() + READY_TIMEOUT);
         self.pending = Some(child);
-        self.policy.restarted();
         Ok(())
     }
 
@@ -149,6 +149,18 @@ impl Daemon {
                     // First child of the session
                     self.failures = 0;
                 }
+
+                // Get app memory usage baseline
+                self.baseline_mb = self
+                    .current
+                    .as_ref()
+                    .and_then(Child::memory_kb)
+                    .map(|kb| kb / 1024);
+                debug!("Baseline Mb: {:?}", self.baseline_mb);
+
+                // Set policy baseline
+                self.policy
+                    .init_policy(&self.video, self.baseline_mb.unwrap_or(0));
             }
             RenderEvent::Status(state) => {
                 for child in [self.current.as_mut(), self.pending.as_mut()]
@@ -252,7 +264,6 @@ impl Daemon {
             info!("Replacing the renderer: {reason}");
             if let Err(e) = self.restart() {
                 warn!("Automatic restart skipped: {e}");
-                self.policy.restarted();
             }
         }
     }
@@ -334,6 +345,9 @@ impl Daemon {
                 Ok(video) => video,
                 Err(e) => return Response::error(e),
             };
+            // A bigger file raises the floor the delta is measured from
+            self.policy
+                .init_policy(&video, self.baseline_mb.unwrap_or(0));
             self.video = video.clone();
             self.config.player.path = Some(video.clone());
             self.broadcast(RenderCmd::SetVideo { path: video });
@@ -367,6 +381,14 @@ impl Daemon {
             }
         };
 
+        let mut policy = RestartPolicy::new(&new.restart);
+        let next_video = new
+            .player
+            .path
+            .clone()
+            .unwrap_or_else(|| self.video.clone());
+        policy.init_policy(&next_video, self.baseline_mb.unwrap_or(0));
+
         let restart_needed = self.config.needs_restart(&new);
 
         // Live player tweaks go straight through; the video only changes if the
@@ -377,7 +399,7 @@ impl Daemon {
         let fill = (new.player.fill != self.config.player.fill).then_some(new.player.fill);
 
         self.config = new;
-        self.policy = Policy::new(&self.config.restart);
+        self.policy = policy;
 
         if restart_needed {
             // The new config is already stored, so the replacement picks it up

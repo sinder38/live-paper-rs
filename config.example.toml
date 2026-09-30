@@ -52,19 +52,12 @@ on_gamemode = true
 on_screen_off = true
 
 
+# Only read by `live-paper-daemon`, only when build with the `auto-restart`
+# feature (is default)
 [restart]
-# Only read by `live-paper-daemon`, and only in a build with the `auto-restart`
-# feature (on by default).
-#
-# libmpv never gives back some of what it allocates, so the renderer process is
-# replaced now and then. The replacement draws its first frame before the old one
-# goes away, so this is not visible.
-
-# Replace it this often: "90s", "30m", "6h", "2d". Unset means never.
-# every = "6h"
-# ...or once it passes this much memory, in MiB. Unset means never.
-# above_memory_mb = 2000
-
+# Replace it once it grows by this much (from baseline + video) in MiB. (needed because of libmvp memory leak)
+# Unset means never. Default is 100MiB
+passed_delta_mb = 100
 
 [debug]
 enabled = false

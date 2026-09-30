@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use live_paper::config::Config;
 use live_paper::{DEFAULT_SOURCE, daemon, wallpaper};
-use log::warn;
+use log::{debug, warn};
 
 #[derive(Parser)]
 #[command(version, about = "live-paper daemon")]
@@ -25,6 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Basic logging setup, may change later
     env_logger::init();
 
+    debug!("Running as a daemon");
     let cli = Cli::parse();
 
     if cli.renderer {

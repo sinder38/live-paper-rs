@@ -26,7 +26,7 @@ pub struct Config {
     pub debug: DebugConfig,
     /// When to replace the renderer on our own. Owned by `daemon::restart`,
     /// which is where the libmpv leak this works around is dealt with
-    pub restart: crate::daemon::RestartConfig,
+    pub restart: RestartConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
@@ -119,6 +119,22 @@ pub struct DebugConfig {
     pub enabled: bool,
 }
 
+/// Configures automatic restart`
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct RestartConfig {
+    /// Replace renderer once it grows by this much (from baseline + video) in
+    /// MiB. Unset means never. Default 100 MiB, because of a memory leak in libmpv
+    pub passed_delta_mb: Option<u64>,
+}
+
+impl Default for RestartConfig {
+    fn default() -> Self {
+        Self {
+            passed_delta_mb: Some(100),
+        }
+    }
+}
 impl Config {
     pub fn needs_restart(&self, new: &Self) -> bool {
         self.backend != new.backend

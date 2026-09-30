@@ -10,6 +10,7 @@ fn main() -> ExitCode {
     // Basic logging setup, may change later
     env_logger::init();
 
+    log::info!("Running as a cli without a daemon");
     let cli = Cli::parse();
 
     // Send command to daemon or run wallpaper itself
