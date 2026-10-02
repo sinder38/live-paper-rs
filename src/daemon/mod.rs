@@ -176,8 +176,10 @@ impl Daemon {
                 debug!("Baseline Mb: {:?}", self.baseline_mb);
 
                 // Set policy baseline
-                self.policy
-                    .init_policy(&self.video, self.baseline_mb.unwrap_or(0));
+                self.policy.init_policy(
+                    &self.video,
+                    self.baseline_mb.expect("baseline should be set"),
+                );
             }
             RenderEvent::Status(state) => {
                 for child in [self.current.as_mut(), self.pending.as_mut()]
@@ -374,7 +376,7 @@ impl Daemon {
             };
             // A bigger file raises the floor the delta is measured from
             self.policy
-                .init_policy(&video, self.baseline_mb.unwrap_or(0));
+                .init_policy(&video, self.baseline_mb.expect("baseline should be set"));
             self.video = video.clone();
             self.broadcast(RenderCmd::SetVideo { path: video });
         }
@@ -407,7 +409,7 @@ impl Daemon {
             }
         };
 
-        let restart_needed = self.config.needs_restart(&new);
+        let restart_needed: bool = self.config.needs_restart(&new);
 
         // Live player tweaks go straight through; video changes only when file's
         // `path` changed, so CLI or `set` video survives unrelated edits
@@ -419,7 +421,10 @@ impl Daemon {
 
         let mut policy = RestartPolicy::new(&new.restart);
         let next_video = video.as_ref().unwrap_or(&self.video);
-        policy.init_policy(next_video, self.baseline_mb.unwrap_or(0));
+        policy.init_policy(
+            next_video,
+            self.baseline_mb.expect("baseline should be set"),
+        );
 
         let speed = (new.player.speed != self.config.player.speed).then_some(new.player.speed);
         let mute = (new.player.mute != self.config.player.mute).then_some(new.player.mute);
