@@ -2,7 +2,7 @@
 [
   {
     "label": "Run mpv prod",
-    "command": "cargo run --bin live-paper-daemon --release --bin live-paper-daemon -- -c ./.mpv_config.toml"
+    "command": "cargo run --bin live-paper-daemon --release -- -c ./.mpv_config.toml"
   },
   {
     "label": "Run pattern prod",
