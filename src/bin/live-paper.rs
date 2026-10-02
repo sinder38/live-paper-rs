@@ -23,7 +23,7 @@ fn main() -> ExitCode {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::FAILURE,
         Err(e) => {
-            println!("error: {e}");
+            log::error!("error: {e}");
             ExitCode::FAILURE
         }
     }

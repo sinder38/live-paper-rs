@@ -90,6 +90,7 @@ impl Command {
 /// Print response
 /// Returns false if it was an error
 pub fn report(response: &Response, json: bool) -> bool {
+    // normal prints on purpose
     match response {
         Response::Ok { message } => {
             if let Some(message) = message {
@@ -100,8 +101,8 @@ pub fn report(response: &Response, json: bool) -> bool {
         Response::State(state) => {
             if json {
                 match serde_json::to_string_pretty(state) {
-                    Ok(text) => println!("{text}"),
-                    Err(e) => eprint!("failed to format the state: {e}"),
+                    Ok(text) => eprintln!("{text}"),
+                    Err(e) => eprintln!("failed to format the state: {e}"),
                 }
             } else {
                 print_state(state);
@@ -109,7 +110,7 @@ pub fn report(response: &Response, json: bool) -> bool {
             true
         }
         Response::Error { message } => {
-            eprint!("error: {message}");
+            eprintln!("error: {message}");
             false
         }
     }
