@@ -58,8 +58,8 @@ on_screen_off = true
 # Only read by `live-paper-daemon`, only when build with the `auto-restart`
 # feature (is default)
 [restart]
-# Replace it once it grows by this much (from baseline + video) in MiB. (needed because of libmvp memory leak)
-# Unset means never. Default is 100MiB
+# Replace it once it grows by this much (from baseline + video) in MiB.
+# Unset means is 100MiB because of libmvp memory leak
 passed_delta_mb = 100
 
 [debug]
