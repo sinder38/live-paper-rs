@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -10,9 +10,11 @@ use crate::APP_NAME;
 /// Config is loaded from `$XDG_CONFIG_HOME/live-paper/config.toml`
 ///
 /// Every field has a default, so an absent or partial file is fine.
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    /// Daemon reloads config when file changes
+    pub auto_reload: bool,
     /// Which frame source to use
     pub backend: BackendKind,
     /// Mpv player confiruration
@@ -24,9 +26,26 @@ pub struct Config {
     pub pausing: PausingConfig,
     /// Enable debug logging
     pub debug: DebugConfig,
+    /// When to replace the renderer on our own. Owned by `daemon::restart`,
+    /// which is where the libmpv leak this works around is dealt with
+    pub restart: RestartConfig,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            auto_reload: true,
+            backend: BackendKind::default(),
+            player: PlayerConfig::default(),
+            layer: LayerConfig::default(),
+            pausing: PausingConfig::default(),
+            debug: DebugConfig::default(),
+            restart: RestartConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum BackendKind {
     /// Play a video file/stream
@@ -38,7 +57,7 @@ pub enum BackendKind {
     Pattern,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct PlayerConfig {
     /// Video path, overridable by the CLI arg
@@ -67,7 +86,7 @@ impl Default for PlayerConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct LayerConfig {
     /// "background" | "bottom" | "top" | "overlay"
@@ -85,7 +104,7 @@ impl Default for LayerConfig {
 }
 
 /// Configures automatic pausing for the backend
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(default)]
 pub struct PausingConfig {
     /// Pause when fullscreening an application (per workspace)
@@ -110,13 +129,38 @@ impl Default for PausingConfig {
 }
 
 // TODO: this doesn't work for the whole application as log init doesn't take it right now
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, Copy, PartialEq)]
 #[serde(default)]
 pub struct DebugConfig {
     pub enabled: bool,
 }
 
+/// Configures automatic restart`
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct RestartConfig {
+    /// Replace renderer once it grows by this much (from baseline + video) in
+    /// MiB. Unset means never. Default 100 MiB, because of a memory leak in libmpv
+    pub passed_delta_mb: Option<u64>,
+}
+
+impl Default for RestartConfig {
+    fn default() -> Self {
+        Self {
+            passed_delta_mb: Some(100),
+        }
+    }
+}
 impl Config {
+    pub fn needs_restart(&self, new: &Self) -> bool {
+        self.backend != new.backend
+            || self.layer != new.layer
+            || self.pausing != new.pausing
+            || self.debug != new.debug
+            || self.player.hwdec != new.player.hwdec
+            || self.player.mpv_options != new.player.mpv_options
+    }
+
     /// Load configuration.
     pub fn load(path: Option<PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
         match path {
@@ -152,7 +196,7 @@ impl Config {
 }
 
 /// Get config path
-fn config_path() -> PathBuf {
+pub(crate) fn config_path() -> PathBuf {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
@@ -193,8 +237,46 @@ mod tests {
     }
 
     #[test]
+    fn auto_reload_defaults_on() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert!(cfg.auto_reload);
+    }
+
+    #[test]
     fn parses_backend_choice() {
         let cfg: Config = toml::from_str("backend = \"pattern\"\n").unwrap();
         assert_eq!(cfg.backend, BackendKind::Pattern);
+    }
+
+    #[test]
+    fn live_player_tweaks_need_no_restart() {
+        let old = Config::default();
+        let mut new = old.clone();
+        new.player.speed = 2.0;
+        new.player.mute = false;
+        new.player.fill = false;
+        new.player.path = Some("/other.mp4".into());
+        assert!(!old.needs_restart(&new));
+    }
+
+    #[test]
+    fn structural_changes_need_a_restart() {
+        let old = Config::default();
+
+        let mut backend = old.clone();
+        backend.backend = BackendKind::Pattern;
+        assert!(old.needs_restart(&backend));
+
+        let mut layer = old.clone();
+        layer.layer.layer = "top".to_string();
+        assert!(old.needs_restart(&layer));
+
+        let mut hwdec = old.clone();
+        hwdec.player.hwdec = "no".to_string();
+        assert!(old.needs_restart(&hwdec));
+
+        let mut pausing = old.clone();
+        pausing.pausing.on_gamemode = false;
+        assert!(old.needs_restart(&pausing));
     }
 }

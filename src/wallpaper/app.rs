@@ -34,14 +34,14 @@ use wayland_protocols_wlr::output_power_management::v1::client::{
     zwlr_output_power_v1::{Event as PowerEvent, Mode as PowerMode, ZwlrOutputPowerV1},
 };
 
+use super::backend::pattern::{Pattern, Renderer};
+use super::backend::player::Player;
+use super::backend::{Backend, BackendCtx};
+use super::egl::{Egl, EglWindow};
+
+use crate::APP_NAME;
 use crate::config::{BackendKind, Config, parse_layer};
-use crate::egl::{Egl, EglWindow};
-use crate::player::Player;
-use crate::render::{Pattern, Renderer};
-use crate::{
-    APP_NAME,
-    backend::{Backend, BackendCtx},
-};
+use crate::ipc::State;
 
 #[derive(Default)]
 struct ToplevelState {
@@ -112,6 +112,16 @@ pub struct App {
     pause_on_maximized: bool,
     /// True while a wl_surface.frame callback is outstanding
     frame_scheduled: bool,
+    /// Which backend is running, for status reports
+    backend_kind: BackendKind,
+    /// Pause asked for over IPC, on top of the automatic pausing
+    manual_pause: bool,
+    /// Something worth reporting to the daemon changed
+    status_dirty: bool,
+    /// The first frame has reached the screen
+    ready: bool,
+    /// Whether that has been handed to the daemon yet
+    ready_reported: bool,
 }
 
 impl App {
@@ -223,6 +233,11 @@ impl App {
             pause_on_fullscreen: config.pausing.on_fullscreen,
             pause_on_maximized: config.pausing.on_maximized,
             frame_scheduled: false,
+            backend_kind: config.backend,
+            manual_pause: false,
+            status_dirty: true,
+            ready: false,
+            ready_reported: false,
         })
     }
 
@@ -233,7 +248,23 @@ impl App {
 
     /// True if backend should be paused
     fn should_pause(&self) -> bool {
-        self.hidden || self.screen_off || self.gamemode_active
+        self.manual_pause || self.hidden || self.screen_off || self.gamemode_active
+    }
+
+    /// Every reason playback is currently held, for `live-paper query`
+    fn pause_reasons(&self) -> Vec<String> {
+        //TODO: move to enum
+        let flags = [
+            (self.manual_pause, "manual"),
+            (self.hidden, "hidden"),
+            (self.screen_off, "screen_off"),
+            (self.gamemode_active, "gamemode"),
+        ];
+        flags
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, name)| (*name).to_string())
+            .collect()
     }
 
     /// Call when obscured or hidden (assumed)
@@ -272,6 +303,7 @@ impl App {
     /// Call after mutating `occluded`/`screen_off`; only touches the backend
     /// on the OR'd value's edge, to avoid redundant mpv calls
     pub fn apply_pause_edge(&mut self, qh: &QueueHandle<Self>) {
+        self.status_dirty = true;
         let now_paused = self.should_pause();
         if now_paused {
             self.backend.pause();
@@ -324,6 +356,7 @@ impl App {
             "Transalating: logical {}x{} → physical {}x{}",
             self.width, self.height, self.phys_w, self.phys_h
         );
+        self.status_dirty = true;
 
         // Set logical size
         self.viewport
@@ -363,7 +396,10 @@ impl App {
 
         let surface = self.layer.wl_surface();
 
-        if self.should_pause() {
+        // Always get one frame up, even when starting paused: a surface with no
+        // buffer shows nothing at all, and the daemon waits on that first frame
+        // before retiring the renderer this one replaces
+        if self.should_pause() && self.ready {
             // nothing to render.
             // apply_pause_edge() starts the loop back up on resume
             return;
@@ -380,6 +416,82 @@ impl App {
 
         // Present new frame (like commit)
         self.egl.swap_buffers(window).expect("swap buffers");
+
+        if !self.ready {
+            self.ready = true;
+            self.status_dirty = true;
+        }
+    }
+
+    /// Ask the loop to shut down, e.g. on `Quit` from the daemon
+    pub fn quit(&mut self) {
+        self.exit = true;
+    }
+
+    /// Pause/resume asked for over IPC
+    pub fn set_manual_pause(&mut self, paused: bool, qh: &QueueHandle<Self>) {
+        if self.manual_pause == paused {
+            return;
+        }
+        self.manual_pause = paused;
+        self.apply_pause_edge(qh);
+    }
+
+    pub fn set_video(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.backend.set_video(path)?;
+        self.status_dirty = true;
+        Ok(())
+    }
+
+    pub fn set_speed(&mut self, speed: f64) -> Result<(), Box<dyn std::error::Error>> {
+        self.backend.set_speed(speed)
+    }
+
+    pub fn set_mute(&mut self, mute: bool) -> Result<(), Box<dyn std::error::Error>> {
+        self.backend.set_mute(mute)
+    }
+
+    pub fn set_fill(&mut self, fill: bool) -> Result<(), Box<dyn std::error::Error>> {
+        self.backend.set_fill(fill)
+    }
+
+    /// Connector name of the output we are on, e.g. "DP-1"
+    fn output_name(&self) -> Option<String> {
+        let output = self.output.as_ref()?;
+        self.output_state.info(output)?.name
+    }
+
+    /// Current state, for the daemon to cache and hand to `live-paper query`.
+    /// The renderer-process fields are left empty; only the daemon knows those
+    pub fn status(&self) -> State {
+        State {
+            video: self.backend.video().unwrap_or_default().to_string(),
+            backend: self.backend_kind,
+            output: self.output_name(),
+            logical: (self.width, self.height),
+            physical: (self.phys_w, self.phys_h),
+            paused: self.should_pause(),
+            pause_reasons: self.pause_reasons(),
+            ..State::default()
+        }
+    }
+
+    /// The status to report, if anything changed since the last call
+    pub fn take_status(&mut self) -> Option<State> {
+        if !self.status_dirty {
+            return None;
+        }
+        self.status_dirty = false;
+        Some(self.status())
+    }
+
+    /// True exactly once, on the first frame reaching the screen
+    pub fn take_ready(&mut self) -> bool {
+        if !self.ready || self.ready_reported {
+            return false;
+        }
+        self.ready_reported = true;
+        true
     }
 }
 
@@ -404,6 +516,7 @@ impl CompositorHandler for App {
     ) {
         let is_new_output = self.output.as_ref().map(Proxy::id) != Some(output.id());
         self.output = Some(output.clone());
+        self.status_dirty = true;
         if is_new_output && let Some(manager) = &self.power_manager {
             // Rebind DPMS tracking to the output we're actually on now
             if let Some(old) = self.power.take() {

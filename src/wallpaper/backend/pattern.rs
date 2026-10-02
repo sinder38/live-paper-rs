@@ -1,6 +1,6 @@
 use glow::HasContext;
 
-use crate::backend::BackendCtx;
+use super::BackendCtx;
 
 /// Test pattern to draw
 #[allow(dead_code)] // This whole section is just for testing purposes
