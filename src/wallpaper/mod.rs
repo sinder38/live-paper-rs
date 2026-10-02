@@ -5,12 +5,12 @@ use calloop_wayland_source::WaylandSource;
 use log::{error, info, warn};
 use smithay_client_toolkit::reexports::client::{Connection, globals::registry_queue_init};
 
-mod app1;
+mod app;
 mod backend;
 mod egl;
 mod gamemode;
 
-use app1::App;
+use app::App;
 
 use crate::config::Config;
 use crate::ipc::{RenderCmd, RenderEvent, write_line};
