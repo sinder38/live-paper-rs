@@ -13,6 +13,9 @@ use crate::APP_NAME;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    /// Run a daemon controlled by `live-paper` commands; `false` runs one
+    /// process only. `--no-daemon` overrides. Read at startup only
+    pub daemon: bool,
     /// Daemon reloads config when file changes
     pub auto_reload: bool,
     /// Which frame source to use
@@ -34,6 +37,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            daemon: true,
             auto_reload: true,
             backend: BackendKind::default(),
             player: PlayerConfig::default(),

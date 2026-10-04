@@ -65,29 +65,15 @@ curl -L https://github.com/sinder38/live-paper-rs/releases/latest/download/live-
 install -Dm755 live-paper-linux-x86_64 ~/.local/bin/live-paper
 ```
 
-## Quick start (Daemonless)
+## Quick start
+
+Run `live-paper` from your compositor autostart (e.g. `exec-once = live-paper` in Hyprland).
+It starts a daemon, so the wallpaper can be changed without restarting it.
+`live-paper <command>` talks to the running daemon:
 
 ```sh
-# Play a video file as your wallpaper
-live-paper ~/Videos/wallpaper.mp4
-
-# Any mpv-compatible source works, including streams
-live-paper "https://example.com/clip.mp4"
-
-# No argument -> falls back to the config file, then a built-in test pattern
-live-paper
-```
-
-Run it from your compositor's autostart (e.g. `exec-once = live-paper ~/Videos/wallpaper.mp4` in Hyprland).
-
-## Daemon (Recommended)
-
-Run `live-paper-daemon` instead and the wallpaper becomes something you can change
-without restarting it. `live-paper` then acts as a client:
-
-```sh
-# start it from your compositor's autostart
-live-paper-daemon &
+live-paper ~/Videos/wallpaper.mp4    # start the daemon with this video
+live-paper                           # path from the config file, else a built-in test pattern
 
 live-paper set ~/Videos/other.mp4    # swap the video
 live-paper set --speed 1.5           # speed, mute and fill apply live too
@@ -99,6 +85,15 @@ live-paper reload                    # re-read the config file
 live-paper restart                   # replace the renderer process
 live-paper kill                      # stop everything
 ```
+
+### Without a daemon
+
+```sh
+live-paper --no-daemon ~/Videos/wallpaper.mp4
+```
+
+or `daemon = false` in the config. One process, no socket, no commands. It also
+never replaces the leaking libmpv renderer, so memory grows over time.
 
 ### Configuration
 

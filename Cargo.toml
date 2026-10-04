@@ -15,10 +15,6 @@ path = "src/lib.rs"
 name = "live-paper"
 path = "src/bin/live-paper.rs"
 
-[[bin]]
-name = "live-paper-daemon"
-path = "src/bin/live-paper-daemon.rs"
-
 [features]
 default = ["auto-restart"]
 # Replace the renderer process on a schedule or above a memory limit, to work

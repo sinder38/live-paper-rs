@@ -18,6 +18,14 @@ pub struct Cli {
     /// (default: $XDG_CONFIG_HOME/live-paper/config.toml)
     #[arg(short, long, value_name = "PATH", global = true)]
     pub config_path: Option<PathBuf>,
+
+    /// Run in this process only: no socket, no `live-paper` commands
+    #[arg(long)]
+    pub daemonless: bool,
+
+    /// Internal: run as the supervised renderer, reading commands on stdin
+    #[arg(long, hide = true)]
+    pub renderer: bool,
 }
 
 #[derive(Subcommand)]
@@ -169,6 +177,13 @@ mod tests {
         let cli = Cli::parse_from(["live-paper", "/x.mp4"]);
         assert!(cli.command.is_none());
         assert_eq!(cli.video.as_deref(), Some("/x.mp4"));
+    }
+
+    #[test]
+    fn no_daemon_flag() {
+        let cli = Cli::parse_from(["live-paper", "--no-daemon", "/x.mp4"]);
+        assert!(cli.daemonless);
+        assert!(!Cli::parse_from(["live-paper"]).daemonless);
     }
 
     #[test]

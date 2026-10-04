@@ -2,11 +2,11 @@
 [
   {
     "label": "Run mpv prod",
-    "command": "cargo run --bin live-paper-daemon --release -- -c ./.mpv_config.toml"
+    "command": "cargo run --release -- -c ./.mpv_config.toml"
   },
   {
     "label": "Run pattern prod",
-    "command": "cargo run --bin live-paper-daemon --release -- -c ./.pattern_config.toml"
+    "command": "cargo run --release -- -c ./.pattern_config.toml"
   },
   {
    "label": "Quick CI",

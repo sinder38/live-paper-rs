@@ -3,20 +3,17 @@ use std::process::ExitCode;
 use clap::Parser;
 use live_paper::cli::{Cli, Command, report};
 use live_paper::config::Config;
-use live_paper::{DEFAULT_SOURCE, ipc, wallpaper};
+use live_paper::{DEFAULT_SOURCE, daemon, ipc, wallpaper};
 use log::warn;
 
 fn main() -> ExitCode {
     // Basic logging setup, may change later
     env_logger::init();
 
-    log::info!("Running as a cli without a daemon");
     let cli = Cli::parse();
-
-    // Send command to daemon or run wallpaper itself
     let result = match &cli.command {
         Some(command) => send(command),
-        None => foreground(&cli),
+        None => start(&cli),
     };
 
     match result {
@@ -36,8 +33,14 @@ fn send(command: &Command) -> Result<bool, Box<dyn std::error::Error>> {
     Ok(report(&response, json))
 }
 
-/// All-in-one run: no socket, no daemon, exits when the wallpaper does
-fn foreground(cli: &Cli) -> Result<bool, Box<dyn std::error::Error>> {
+/// Run the wallpaper: as renderer, as daemon, or all-in-one without daemon
+fn start(cli: &Cli) -> Result<bool, Box<dyn std::error::Error>> {
+    if cli.renderer {
+        let (config, video) = wallpaper::read_init()?;
+        wallpaper::run(&config, &video, true)?;
+        return Ok(true);
+    }
+
     let config = Config::load(cli.config_path.clone())?;
 
     // CLI arg over config file, otherwise run built-in default
@@ -49,6 +52,11 @@ fn foreground(cli: &Cli) -> Result<bool, Box<dyn std::error::Error>> {
         }
     };
 
-    wallpaper::run(&config, &video, false)?;
+    if cli.daemonless || !config.daemon {
+        log::info!("Running without a daemon");
+        wallpaper::run(&config, &video, false)?;
+    } else {
+        daemon::run(config, cli.config_path.clone(), video)?;
+    }
     Ok(true)
 }

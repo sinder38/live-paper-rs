@@ -34,7 +34,7 @@ pub struct Child {
 
 impl Child {
     /// Start a renderer and wire its stdout to `sender`
-    /// Renderer is this same binary run with `--renderer`, so installation still ships 2 executables
+    /// Renderer is this same binary run with `--renderer`
     pub fn spawn(
         id: u64,
         config: &Config,

@@ -1,5 +1,8 @@
 # Example live-paper config
 
+# false: run in a single process, no `live-paper` commands
+daemon = true
+
 # Daemon applies edits to this file without restarting
 auto_reload = true
 
