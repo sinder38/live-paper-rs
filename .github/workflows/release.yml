@@ -16,6 +16,16 @@ jobs:
       NAME: live-paper-linux-x86_64
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check Cargo version matches tag
+        run: |
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Cargo.toml version $CARGO_VERSION != tag $TAG_VERSION"
+            exit 1
+          fi
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ env.TARGET }}
