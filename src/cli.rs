@@ -20,11 +20,11 @@ pub struct Cli {
     pub config_path: Option<PathBuf>,
 
     /// Run in this process only: no socket, no `live-paper` commands
-    #[arg(long)]
+    #[arg(long, default_value_t = false, alias = "no-daemon")]
     pub daemonless: bool,
 
     /// Internal: run as the supervised renderer, reading commands on stdin
-    #[arg(long, hide = true)]
+    #[arg(long, hide = true, default_value_t = false)]
     pub renderer: bool,
 }
 

@@ -67,14 +67,13 @@ install -Dm755 live-paper-linux-x86_64 ~/.local/bin/live-paper
 
 ## Quick start
 
-Run `live-paper` from your compositor autostart (e.g. `exec-once = live-paper` in Hyprland).
-It starts a daemon, so the wallpaper can be changed without restarting it.
+Run `live-paper` from your compositor autostart (like `hl.exec_cmd("live-paper")` in Hyprland).
 `live-paper <command>` talks to the running daemon:
-
 ```sh
 live-paper ~/Videos/wallpaper.mp4    # start the daemon with this video
 live-paper                           # path from the config file, else a built-in test pattern
 
+# Change config
 live-paper set ~/Videos/other.mp4    # swap the video
 live-paper set --speed 1.5           # speed, mute and fill apply live too
 live-paper pause                     # hold playback until `resume`
@@ -86,7 +85,7 @@ live-paper restart                   # replace the renderer process
 live-paper kill                      # stop everything
 ```
 
-### Without a daemon
+### Without a daemon (Not recommended)
 
 ```sh
 live-paper --no-daemon ~/Videos/wallpaper.mp4
@@ -94,6 +93,8 @@ live-paper --no-daemon ~/Videos/wallpaper.mp4
 
 or `daemon = false` in the config. One process, no socket, no commands. It also
 never replaces the leaking libmpv renderer, so memory grows over time.
+
+Because of [this](https://github.com/sinder38/live-paper-rs/issues/2)
 
 ### Configuration
 
